@@ -29,7 +29,7 @@ def choose(model, state, epsilon):
 
     Args:
         model (`tf.keras.Model`): The DQN model
-        state (`np.array`): The input state to the model as a 3D tensor
+        state (`tf.Tensor`): The input state to the model as a 3D tensor
         epsilon (float): The epsilon for the epsion-greedy policy
 
     Returns:
@@ -77,8 +77,10 @@ def sample_replay(replay, batch_size):
 
     inputs = tf.stack(inputs, axis=0)
     actions = tf.stack(actions, axis=0)
-    rewards = tf.stack(rewards, axis=0)
     terminals = tf.stack(terminal, axis=0)
+
+    # Quantize rewards, as per the paper
+    rewards = tf.sign(tf.stack(rewards, axis=0))
 
     # Make it into a 4D tensor with a single channel for easy concatenation
     outputs = tf.expand_dims(tf.stack(outputs, axis=0), axis=-1)

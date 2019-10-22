@@ -60,9 +60,9 @@ def exp_replay(
         fixed (`tf.keras.Model`): The model with fixed weights used for the
             Q-targets
         optimizer (`tf.keras.optimizers.Optimizer`): The optimizer
-        inputs (`tf.Tensor`): The uint8 initial states for the batch of
+        inputs (`tf.Tensor`): The float32 initial states for the batch of
             transitions
-        outputs (`tf.Tensor`): The uint8 corresponding final states for the
+        outputs (`tf.Tensor`): The float32 corresponding final states for the
             batch of transitions
         actions (`tf.Tensor`): The int64 corresponding actions for the batch of
             transitions
@@ -82,7 +82,7 @@ def exp_replay(
         q_final = fixed(outputs, training=True)
 
         # If final state is terminal, then target is only the reward
-        mask = tf.cast(not terminals, tf.float32)
+        mask = tf.cast(tf.logical_not(terminals), tf.float32)
         targets = rewards + mask * discount * tf.reduce_max(q_final, axis=1)
 
         # Choose q-values based on actions taken
@@ -114,7 +114,6 @@ def train(
     decay_eps,
     discount,
     frame_skips,
-    reset_eps,
     writer,
     log_steps,
     video_eps,
@@ -140,7 +139,6 @@ def train(
         decay_eps (int): No. of episodes for epsilon decay
         discount (float): Discount factor for reward
         frame_skips (int): How much frames to skip
-        reset_eps (int): Episodes after which the fixed model is to be updated
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         log_steps (int): Steps after which model is to be logged
         video_eps (int): Episodes after which video is to be saved
@@ -174,20 +172,20 @@ def train(
 
             while True:
                 if len(state) < STATE_FRAMES or global_step % frame_skips != 0:
-                    inputs = None
+                    initial = None
                     action = env.action_space.sample()
                 else:
-                    inputs = tf.stack(state, axis=-1)
-                    action = choose(model, inputs, epsilon)
+                    initial = tf.stack(state, axis=-1)
+                    action = choose(model, initial, epsilon)
 
                 state_new, reward, done, _ = env.step(action)
                 state_new = preprocess(state_new)
                 state.append(state_new)
 
-                if inputs is not None:
+                if initial is not None:
                     # The inputs for this transition are well-defined, ie. a
                     # proper x-frames state, so add it to the replay buffer.
-                    replay.append((inputs, state_new, action, reward, done))
+                    replay.append((initial, state_new, action, reward, done))
 
                 # Sample from the replay buffer if not skipping frames
                 if (
@@ -197,6 +195,8 @@ def train(
                     inputs, outputs, actions, rewards, terms = sample_replay(
                         replay, batch_size
                     )
+                    prev_wts = model.get_weights()
+
                     exp_replay(
                         model,
                         fixed,
@@ -213,12 +213,13 @@ def train(
                         log_dir,
                     )
 
+                    # Ensure that the fixed model weights are always one step
+                    # behind the model's weights.
+                    fixed.set_weights(prev_wts)
+
                 global_step.assign_add(1)
                 if done:
                     break
-
-            if ep % reset_eps == 0:
-                fixed.set_weights(model.get_weights())
 
             if ep % save_eps == 0:
                 saver(model, fixed, replay, ep, epsilon, save_dir)
@@ -279,7 +280,6 @@ def main(args):
         decay_eps=args.decay_eps,
         discount=args.discount,
         frame_skips=args.frame_skips,
-        reset_eps=args.reset_eps,
         writer=writer,
         log_steps=args.log_steps,
         video_eps=args.video_eps,
@@ -304,7 +304,7 @@ if __name__ == "__main__":
         help="batch size for sampling from the replay buffer",
     )
     parser.add_argument(
-        "--episodes", type=int, default=10000, help="total epsiodes to train"
+        "--episodes", type=int, default=20000, help="total epsiodes to train"
     )
     parser.add_argument(
         "--epsilon",
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--decay-eps",
         type=int,
-        default=1000,
+        default=int(1e6),
         help="no. of episodes for epsilon decay",
     )
     parser.add_argument(
@@ -338,12 +338,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--frame-skips", type=int, default=4, help="how much frames to skip"
-    )
-    parser.add_argument(
-        "--reset-eps",
-        type=int,
-        default=5,
-        help="episodes after which the fixed model is to be updated",
     )
     parser.add_argument(
         "--log-steps",

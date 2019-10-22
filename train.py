@@ -86,7 +86,9 @@ def exp_replay(
         targets = rewards + mask * discount * tf.reduce_max(q_final, axis=1)
 
         # Choose q-values based on actions taken
-        indices = tf.stack([range(actions.shape[0]), actions], axis=1)
+        indices = tf.stack(
+            [tf.range(actions.shape[0], dtype=tf.int64), actions], axis=1
+        )
         pred = tf.gather_nd(q_initial, indices)
 
         loss = tf.reduce_mean((targets - pred) ** 2)
@@ -158,9 +160,10 @@ def train(
     # Epsilon is decayed linearly for a few episodes, then kept constant
     epsilon_decay = (epsilon - min_epsilon) / decay_eps
     # `tf.Variable` is used, as global step changes every frame, and thus the
-    # graph will be re-traced if it were a python value. It is used for saving
-    # logs.
-    global_step = tf.Variable(1)
+    # graph will be re-traced if it were a python value. Also, int64 is
+    # expected by the summary op.
+    # This is used for saving logs.
+    global_step = tf.Variable(1, dtype=tf.int64)
 
     try:
         for ep in tqdm(
@@ -187,7 +190,10 @@ def train(
                     replay.append((inputs, state_new, action, reward, done))
 
                 # Sample from the replay buffer if not skipping frames
-                if len(replay) >= batch_size or global_step % frame_skips == 0:
+                if (
+                    len(replay) >= batch_size
+                    and global_step % frame_skips == 0
+                ):
                     inputs, outputs, actions, rewards, terms = sample_replay(
                         replay, batch_size
                     )

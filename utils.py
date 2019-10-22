@@ -16,8 +16,8 @@ def preprocess(img):
     # `tf.image.resize` converts to float32 in range [0, 255]. Cast to uint8 to
     # save space in the replay buffer.
     img = tf.cast(tf.image.resize(img, PRE_CROP_SIZE), tf.uint8)
-    # Cropping from the `SHIFT` row
-    img = img[SHIFT : (SHIFT + IMG_SIZE[0])]
+    # Cropping from the `SHIFT` row, and removing the single channel
+    img = img[SHIFT : (SHIFT + IMG_SIZE[0]), :, 0]
     return img
 
 
@@ -38,7 +38,7 @@ def choose(model, state, epsilon):
     """
     # Convert from uint8 to float32
     inputs = tf.image.convert_image_dtype(state, tf.float32)
-    pred = model(tf.expand_dims(inputs, 0))[0]  # not training
+    pred = model(tf.expand_dims(inputs, axis=0))[0]  # not training
     random = tf.random.uniform([])
     if random < epsilon:
         action = tf.random.uniform(
@@ -65,8 +65,8 @@ def sample_replay(replay, batch_size):
             one instance
 
     Returns:
-        `tf.Tensor`: The input states as a uint8 batch
-        `tf.Tensor`: The corresponding output states as a uint8 batch
+        `tf.Tensor`: The input states as a float32 batch
+        `tf.Tensor`: The corresponding output states as a float32 batch
         `tf.Tensor`: The corresponding actions as a int64 batch
         `tf.Tensor`: The corresponding rewards as a float32 batch
         `tf.Tensor`: The corresponding terminal indicators as a bool batch
@@ -84,5 +84,9 @@ def sample_replay(replay, batch_size):
     outputs = tf.expand_dims(tf.stack(outputs, axis=0), axis=-1)
     # Ignore the oldest frames in the inputs
     outputs = tf.concat([inputs[:, :, :, 1:], outputs], axis=-1)
+
+    # Convert from uint8 to float32
+    inputs = tf.image.convert_image_dtype(inputs, tf.float32)
+    outputs = tf.image.convert_image_dtype(outputs, tf.float32)
 
     return inputs, outputs, actions, rewards, terminals

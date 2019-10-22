@@ -151,7 +151,7 @@ def train(
     env = Monitor(
         env,
         os.path.join(log_dir, "videos"),
-        resume=True,  # retain older videos
+        resume=False,  # don't retain older videos
         video_callable=lambda count: count % video_eps == 0,
     )
 
@@ -170,6 +170,8 @@ def train(
             state = deque(maxlen=STATE_FRAMES)
             state.append(preprocess(env.reset()))  # initial state
 
+            first = None
+
             while True:
                 if len(state) < STATE_FRAMES or global_step % frame_skips != 0:
                     initial = None
@@ -186,6 +188,8 @@ def train(
                     # The inputs for this transition are well-defined, ie. a
                     # proper x-frames state, so add it to the replay buffer.
                     replay.append((initial, state_new, action, reward, done))
+                    if first is None:
+                        first = initial
 
                 # Sample from the replay buffer if not skipping frames
                 if (
@@ -220,6 +224,11 @@ def train(
                 global_step.assign_add(1)
                 if done:
                     break
+
+            with writer.as_default(), tf.name_scope("metrics"):
+                first = tf.image.convert_image_dtype(first, tf.float32)
+                pred = model(tf.expand_dims(first, axis=0))[0]  # not training
+                tf.summary.scalar("max q", tf.reduce_max(pred), step=ep)
 
             if ep % save_eps == 0:
                 saver(model, fixed, replay, ep, epsilon, save_dir)

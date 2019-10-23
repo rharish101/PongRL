@@ -5,11 +5,11 @@ import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections import deque
 
-import gym
 import tensorflow as tf
-from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 
+import gym
+from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from model import get_model
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, sample_replay
 
@@ -18,14 +18,13 @@ FIXED_SAVE_NAME = "fixed.ckpt"
 DATA_SAVE_NAME = "data.pkl"
 
 
-def saver(model, fixed, replay, episode, epsilon, save_dir):
+def saver(model, fixed, episode, epsilon, save_dir):
     """Save model and training parameters.
 
     Args:
         model (`tf.keras.Model`): The model to be trained
         fixed (`tf.keras.Model`): The model with fixed weights used for the
             Q-targets
-        replay (`collections.deque`): The experience replay buffer
         episode (int): The count of the current episode
         epsilon (float): Current value of epsilon for the epsilon-greedy policy
         save_dir (str): Path where to save the model and data
@@ -34,7 +33,7 @@ def saver(model, fixed, replay, episode, epsilon, save_dir):
     model.save_weights(os.path.join(save_dir, MODEL_SAVE_NAME))
     fixed.save_weights(os.path.join(save_dir, MODEL_SAVE_NAME))
     with open(os.path.join(save_dir, DATA_SAVE_NAME), "wb") as dataf:
-        pickle.dump((replay, episode, epsilon), dataf)
+        pickle.dump((episode, epsilon), dataf)
 
 
 @tf.function
@@ -231,7 +230,7 @@ def train(
                 tf.summary.scalar("max q", tf.reduce_max(pred), step=ep)
 
             if ep % save_eps == 0:
-                saver(model, fixed, replay, ep, epsilon, save_dir)
+                saver(model, fixed, ep, epsilon, save_dir)
 
             if ep <= decay_eps:
                 epsilon -= epsilon_decay
@@ -239,7 +238,7 @@ def train(
     except KeyboardInterrupt:
         pass
     finally:
-        saver(model, fixed, replay, ep, epsilon, save_dir)
+        saver(model, fixed, ep, epsilon, save_dir)
 
 
 def main(args):
@@ -259,20 +258,19 @@ def main(args):
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
 
+    replay = deque(maxlen=args.replay_size)
     if args.resume:
         model.load_weights(os.path.join(args.save_dir, MODEL_SAVE_NAME))
         fixed.load_weights(os.path.join(args.save_dir, FIXED_SAVE_NAME))
         with open(os.path.join(args.save_dir, DATA_SAVE_NAME), "wb") as dataf:
-            replay, start, epsilon = pickle.load(dataf)
+            start, epsilon = pickle.load(dataf)
         print("Loaded model and training data")
     else:
         fixed.set_weights(model.get_weights())
-        replay = deque(maxlen=args.replay_size)
         start = 0
         epsilon = args.epsilon
 
     optimizer = tf.keras.optimizers.RMSprop(args.lr)
-
     writer = tf.summary.create_file_writer(args.log_dir)
 
     train(

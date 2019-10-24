@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Train the DQN for Pong."""
+import json
 import os
 import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections import deque
 
+import gym
 import tensorflow as tf
+from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 
-import gym
-from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from model import get_model
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, sample_replay
 
 MODEL_SAVE_NAME = "model.ckpt"
 FIXED_SAVE_NAME = "fixed.ckpt"
 DATA_SAVE_NAME = "data.pkl"
+CONFIG_SAVE_NAME = "config.json"
 
 
 def saver(model, fixed, episode, epsilon, save_dir):
@@ -151,6 +153,7 @@ def train(
         env,
         os.path.join(log_dir, "videos"),
         resume=False,  # don't retain older videos
+        force=True,  # overwrite existing videos
         video_callable=lambda count: count % video_eps == 0,
     )
 
@@ -272,6 +275,17 @@ def main(args):
 
     optimizer = tf.keras.optimizers.RMSprop(args.lr)
     writer = tf.summary.create_file_writer(args.log_dir)
+
+    if not os.path.exists(args.log_dir):
+        os.makedirs(args.log_dir)
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+
+    # Save hyperparams in both log and save directories
+    with open(os.path.join(args.log_dir, CONFIG_SAVE_NAME), "w") as conf:
+        json.dump(vars(args), conf)
+    with open(os.path.join(args.save_dir, CONFIG_SAVE_NAME), "w") as conf:
+        json.dump(vars(args), conf)
 
     train(
         env,

@@ -316,7 +316,7 @@ if __name__ == "__main__":
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-3, help="learning rate for RMSprop"
+        "--lr", type=float, default=0.01, help="learning rate for RMSprop"
     )
     parser.add_argument(
         "--batch-size",
@@ -342,7 +342,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--decay-eps",
         type=int,
-        default=int(1e6),
+        default=2000,
         help="no. of episodes for epsilon decay",
     )
     parser.add_argument(

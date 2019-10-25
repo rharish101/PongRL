@@ -114,7 +114,6 @@ def train(
     min_epsilon,
     decay_eps,
     discount,
-    frame_skips,
     writer,
     log_steps,
     video_eps,
@@ -139,7 +138,6 @@ def train(
         min_epsilon (float): Lower bound for epsilon after decay
         decay_eps (int): No. of episodes for epsilon decay
         discount (float): Discount factor for reward
-        frame_skips (int): How much frames to skip
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         log_steps (int): Steps after which model is to be logged
         video_eps (int): Episodes after which video is to be saved
@@ -175,7 +173,7 @@ def train(
             first = None
 
             while True:
-                if len(state) < STATE_FRAMES or global_step % frame_skips != 0:
+                if len(state) < STATE_FRAMES:
                     initial = None
                     action = env.action_space.sample()
                 else:
@@ -193,11 +191,7 @@ def train(
                     if first is None:
                         first = initial
 
-                # Sample from the replay buffer if not skipping frames
-                if (
-                    len(replay) >= batch_size
-                    and global_step % frame_skips == 0
-                ):
+                if len(replay) >= batch_size:
                     inputs, outputs, actions, rewards, terms = sample_replay(
                         replay, batch_size
                     )
@@ -252,7 +246,8 @@ def main(args):
             arguments
 
     """
-    env = gym.make("Pong-v4")
+    # Automatically implements frame skipping internally
+    env = gym.make("Pong-v4", frameskip=args.frame_skips)
 
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
@@ -300,7 +295,6 @@ def main(args):
         min_epsilon=args.min_epsilon,
         decay_eps=args.decay_eps,
         discount=args.discount,
-        frame_skips=args.frame_skips,
         writer=writer,
         log_steps=args.log_steps,
         video_eps=args.video_eps,

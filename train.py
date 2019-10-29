@@ -111,8 +111,10 @@ def train(
     episodes,
     epsilon,
     min_epsilon,
+    decay_wait,
     decay_eps,
     discount,
+    reset_steps,
     writer,
     log_steps,
     video_eps,
@@ -135,8 +137,10 @@ def train(
         episodes (int): The max episodes to train the model
         epsilon (float): Initial value of epsilon for the epsilon-greedy policy
         min_epsilon (float): Lower bound for epsilon after decay
+        decay_wait (int): No. of episodes to wait before decaying epsilon
         decay_eps (int): No. of episodes for epsilon decay
         discount (float): Discount factor for reward
+        reset_steps (int): Steps after which the fixed model is to be updated
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         log_steps (int): Steps after which model is to be logged
         video_eps (int): Episodes after which video is to be saved
@@ -159,7 +163,6 @@ def train(
     # `tf.Variable` is used, as global step changes every frame, and thus the
     # graph will be re-traced if it were a python value. Also, int64 is
     # expected by the summary op.
-    # This is used for saving logs.
     global_step = tf.Variable(1, dtype=tf.int64)
 
     try:
@@ -194,8 +197,6 @@ def train(
                     inputs, outputs, actions, rewards, terms = sample_replay(
                         replay, batch_size
                     )
-                    prev_wts = model.get_weights()
-
                     exp_replay(
                         model,
                         fixed,
@@ -211,11 +212,11 @@ def train(
                         log_steps,
                     )
 
-                    # Ensure that the fixed model weights are always one step
-                    # behind the model's weights.
-                    fixed.set_weights(prev_wts)
-
                 global_step.assign_add(1)
+
+                if global_step % reset_steps == 0:
+                    fixed.set_weights(model.get_weights())
+
                 if done:
                     break
 
@@ -227,7 +228,7 @@ def train(
             if ep % save_eps == 0:
                 saver(model, fixed, ep, epsilon, save_dir)
 
-            if ep <= decay_eps:
+            if decay_wait <= ep <= decay_wait + decay_eps:
                 epsilon -= epsilon_decay
 
     except KeyboardInterrupt:
@@ -291,8 +292,10 @@ def main(args):
         episodes=args.episodes,
         epsilon=epsilon,
         min_epsilon=args.min_epsilon,
+        decay_wait=args.decay_wait,
         decay_eps=args.decay_eps,
         discount=args.discount,
+        reset_steps=args.reset_steps,
         writer=writer,
         log_steps=args.log_steps,
         video_eps=args.video_eps,
@@ -328,8 +331,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-epsilon",
         type=float,
-        default=0.1,
+        default=0.01,
         help="lower bound for epsilon after decay",
+    )
+    parser.add_argument(
+        "--decay-wait",
+        type=int,
+        default=1000,
+        help="no. of episodes to wait before decaying epsilon",
     )
     parser.add_argument(
         "--decay-eps",
@@ -351,6 +360,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--frame-skips", type=int, default=4, help="how much frames to skip"
+    )
+    parser.add_argument(
+        "--reset-steps",
+        type=int,
+        default=10000,
+        help="steps after which the fixed model is to be updated",
     )
     parser.add_argument(
         "--log-steps",

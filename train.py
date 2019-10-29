@@ -78,17 +78,23 @@ def exp_replay(
     """
     with tf.GradientTape() as tape:
         q_initial = model(inputs, training=True)
-        q_final = fixed(outputs, training=True)
+        q_final_main = model(outputs, training=True)
+        q_final_fixed = fixed(outputs, training=True)
 
         # If final state is terminal, then target is only the reward
         mask = tf.cast(tf.logical_not(terminals), tf.float32)
-        targets = rewards + mask * discount * tf.reduce_max(q_final, axis=1)
+        # Double DQN: Choose target values based on fixed model's values but
+        # main model's actions.
+        batch_range = tf.range(actions.shape[0], dtype=tf.int64)
+        tgt_indices = tf.stack(
+            [batch_range, tf.argmax(q_final_main, axis=1)], axis=1
+        )
+        q_final = tf.gather_nd(q_final_fixed, tgt_indices)
+        targets = rewards + mask * discount * q_final
 
         # Choose q-values based on actions taken
-        indices = tf.stack(
-            [tf.range(actions.shape[0], dtype=tf.int64), actions], axis=1
-        )
-        pred = tf.gather_nd(q_initial, indices)
+        pred_indices = tf.stack([batch_range, actions], axis=1)
+        pred = tf.gather_nd(q_initial, pred_indices)
 
         # Huber loss, to avoid gradient explosion
         loss = tf.keras.losses.Huber()(y_true=targets, y_pred=pred)

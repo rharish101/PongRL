@@ -52,7 +52,6 @@ def exp_replay(
     writer,
     global_step,
     log_steps,
-    log_dir,
 ):
     """Train the model on a random sample from the replay buffer.
 
@@ -75,7 +74,6 @@ def exp_replay(
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         global_step (`tf.Variable`): The no. of frames processed so far
         log_steps (int): Steps after which model is to be logged
-        log_dir (str): Path where to save logs
 
     """
     with tf.GradientTape() as tape:
@@ -92,7 +90,8 @@ def exp_replay(
         )
         pred = tf.gather_nd(q_initial, indices)
 
-        loss = tf.reduce_mean((targets - pred) ** 2)
+        # Huber loss, to avoid gradient explosion
+        loss = tf.keras.losses.Huber()(y_true=targets, y_pred=pred)
 
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
@@ -210,7 +209,6 @@ def train(
                         writer,
                         global_step,
                         log_steps,
-                        log_dir,
                     )
 
                     # Ensure that the fixed model weights are always one step
@@ -268,7 +266,7 @@ def main(args):
         start = 0
         epsilon = args.epsilon
 
-    optimizer = tf.keras.optimizers.RMSprop(args.lr)
+    optimizer = tf.keras.optimizers.Adam(args.lr)
     writer = tf.summary.create_file_writer(args.log_dir)
 
     if not os.path.exists(args.log_dir):
@@ -310,7 +308,7 @@ if __name__ == "__main__":
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--lr", type=float, default=0.01, help="learning rate for RMSprop"
+        "--lr", type=float, default=2.5e-4, help="learning rate for Adam"
     )
     parser.add_argument(
         "--batch-size",

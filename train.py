@@ -6,11 +6,11 @@ import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections import deque
 
-import gym
 import tensorflow as tf
-from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 
+import gym
+from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from model import get_model
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, sample_replay
 
@@ -49,9 +49,6 @@ def exp_replay(
     rewards,
     terminals,
     discount,
-    writer,
-    global_step,
-    log_steps,
 ):
     """Train the model on a random sample from the replay buffer.
 
@@ -71,9 +68,6 @@ def exp_replay(
         terminals (`tf.Tensor`): The bool corresponding terminal indicators for
             the batch of transitions
         discount (float): Discount factor for reward
-        writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
-        global_step (`tf.Variable`): The no. of frames processed so far
-        log_steps (int): Steps after which model is to be logged
 
     """
     with tf.GradientTape() as tape:
@@ -102,9 +96,96 @@ def exp_replay(
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-    if global_step % log_steps == 0:
-        with writer.as_default(), tf.name_scope("losses"):
-            tf.summary.scalar("loss", loss, step=global_step)
+    # Needed for logging loss
+    return loss
+
+
+def train_episode(
+    env,
+    model,
+    fixed,
+    optimizer,
+    replay,
+    batch_size,
+    epsilon,
+    discount,
+    global_step,
+    reset_steps,
+    writer,
+    log_steps,
+):
+    """Run one episode and train the model on it.
+
+    Args:
+        env (`gym.Wrapper`): The Atari Pong environment
+        model (`tf.keras.Model`): The model to be trained
+        fixed (`tf.keras.Model`): The model with fixed weights used for the
+            Q-targets
+        optimizer (`tf.keras.optimizers.Optimizer`): The optimizer
+        replay (`collections.deque`): The experience replay buffer
+        batch_size (int): The no. of states to sample from the replay buffer at
+            one instance
+        epsilon (float): Initial value of epsilon for the epsilon-greedy policy
+        discount (float): Discount factor for reward
+        global_step (`tf.Variable`): The no. of frames processed so far
+        reset_steps (int): Steps after which the fixed model is to be updated
+        writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
+        log_steps (int): Steps after which model is to be logged
+
+    """
+    state = deque(maxlen=STATE_FRAMES)
+    state.append(preprocess(env.reset()))  # initial state
+
+    first = None
+
+    while True:
+        if len(state) < STATE_FRAMES:
+            initial = None
+            action = env.action_space.sample()
+        else:
+            initial = tf.stack(state, axis=-1)
+            action = choose(model, initial, epsilon)
+
+        state_new, reward, done, _ = env.step(action)
+        state_new = preprocess(state_new)
+        state.append(state_new)
+
+        if initial is not None:
+            # The inputs for this transition are well-defined, ie. a
+            # proper x-frames state, so add it to the replay buffer.
+            replay.append((initial, state_new, action, reward, done))
+            if first is None:
+                first = initial
+
+        if len(replay) >= batch_size:
+            inputs, outputs, actions, rewards, terms = sample_replay(
+                replay, batch_size
+            )
+            loss = exp_replay(
+                model,
+                fixed,
+                optimizer,
+                inputs,
+                outputs,
+                actions,
+                rewards,
+                terms,
+                discount,
+            )
+
+        if global_step % log_steps == 0:
+            with writer.as_default(), tf.name_scope("losses"):
+                tf.summary.scalar("loss", loss, step=global_step)
+        global_step.assign_add(1)
+
+        if global_step % reset_steps == 0:
+            fixed.set_weights(model.get_weights())
+
+        if done:
+            break
+
+    # Needed for logging metrics
+    return first
 
 
 def train(
@@ -175,56 +256,20 @@ def train(
         for ep in tqdm(
             range(start + 1, episodes + 1), initial=start, total=episodes
         ):
-            state = deque(maxlen=STATE_FRAMES)
-            state.append(preprocess(env.reset()))  # initial state
-
-            first = None
-
-            while True:
-                if len(state) < STATE_FRAMES:
-                    initial = None
-                    action = env.action_space.sample()
-                else:
-                    initial = tf.stack(state, axis=-1)
-                    action = choose(model, initial, epsilon)
-
-                state_new, reward, done, _ = env.step(action)
-                state_new = preprocess(state_new)
-                state.append(state_new)
-
-                if initial is not None:
-                    # The inputs for this transition are well-defined, ie. a
-                    # proper x-frames state, so add it to the replay buffer.
-                    replay.append((initial, state_new, action, reward, done))
-                    if first is None:
-                        first = initial
-
-                if len(replay) >= batch_size:
-                    inputs, outputs, actions, rewards, terms = sample_replay(
-                        replay, batch_size
-                    )
-                    exp_replay(
-                        model,
-                        fixed,
-                        optimizer,
-                        inputs,
-                        outputs,
-                        actions,
-                        rewards,
-                        terms,
-                        discount,
-                        writer,
-                        global_step,
-                        log_steps,
-                    )
-
-                global_step.assign_add(1)
-
-                if global_step % reset_steps == 0:
-                    fixed.set_weights(model.get_weights())
-
-                if done:
-                    break
+            first = train_episode(
+                env,
+                model,
+                fixed,
+                optimizer,
+                replay,
+                batch_size,
+                epsilon,
+                discount,
+                global_step,
+                reset_steps,
+                writer,
+                log_steps,
+            )
 
             with writer.as_default(), tf.name_scope("metrics"):
                 first = tf.image.convert_image_dtype(first, tf.float32)

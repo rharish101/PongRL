@@ -412,7 +412,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--replay-size",
         type=int,
-        default=int(1e6),
+        default=int(1e5),
         help="max size of experience replay buffer",
     )
     parser.add_argument(

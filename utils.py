@@ -9,6 +9,54 @@ SHIFT = 18  # the row from where to crop the frame
 STATE_FRAMES = 4
 
 
+class ReplayBuffer:
+    """A class for the replay buffer as a limited length FIFO list."""
+
+    def __init__(self, limit):
+        """Initialize the buffer.
+
+        Args:
+            limit (int): The limit for the buffer.
+
+        Raises:
+            ValueError: If the limit is not positive
+
+        """
+        if limit <= 0:
+            raise ValueError(
+                "Buffer limit must be positive; got: {}".format(limit)
+            )
+
+        self.buffer = []
+        self.limit = limit
+        self.next = 0  # where to insert items if buffer is full
+
+    def append(self, item):
+        """Append the item to the buffer.
+
+        If the buffer is not full, then the item will be appended. If it is
+        full, then the item which was inserted earlier (by the index) will be
+        overwritten.
+        """
+        if len(self.buffer) < self.limit:
+            self.buffer.append(item)
+        else:
+            # `self.next` is initialized with 0. It points to the oldest item.
+            self.buffer[self.next] = item
+            # Increment `self.next`, as the next oldest item is the next one by
+            # index. Once the limit is reached, it wraps around, as the oldest
+            # item now is the one at the first index.
+            self.next = (self.next + 1) % self.limit
+
+    def __len__(self):
+        """Return the total number of items in the buffer."""
+        return len(self.buffer)
+
+    def sample(self, *args, **kwargs):
+        """Return a random sample from the buffer."""
+        return random.sample(self.buffer, *args, **kwargs)
+
+
 @tf.function
 def preprocess(img):
     """Preprocess a frame."""
@@ -60,7 +108,7 @@ def sample_replay(replay, batch_size):
         bool: Whether the final frame is terminal
 
     Args:
-        replay (`collections.deque`): The experience replay buffer
+        replay (`utils.ReplayBuffer`): The experience replay buffer
         batch_size (int): The no. of states to sample from the replay buffer at
             one instance
 
@@ -72,7 +120,7 @@ def sample_replay(replay, batch_size):
         `tf.Tensor`: The corresponding terminal indicators as a bool batch
 
     """
-    exp_sample = random.sample(replay, batch_size)
+    exp_sample = replay.sample(batch_size)
     inputs, outputs, actions, rewards, terminal = zip(*exp_sample)
 
     inputs = tf.stack(inputs, axis=0)

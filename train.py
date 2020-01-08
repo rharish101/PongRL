@@ -13,7 +13,14 @@ from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 
 from model import get_model
-from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, sample_replay
+from utils import (
+    IMG_SIZE,
+    STATE_FRAMES,
+    ReplayBuffer,
+    choose,
+    preprocess,
+    sample_replay,
+)
 
 MODEL_SAVE_NAME = "model.ckpt"
 FIXED_SAVE_NAME = "fixed.ckpt"
@@ -123,7 +130,7 @@ def train_episode(
         fixed (`tf.keras.Model`): The model with fixed weights used for the
             Q-targets
         optimizer (`tf.keras.optimizers.Optimizer`): The optimizer
-        replay (`collections.deque`): The experience replay buffer
+        replay (`utils.ReplayBuffer`): The experience replay buffer
         batch_size (int): The no. of states to sample from the replay buffer at
             one instance
         epsilon (float): Initial value of epsilon for the epsilon-greedy policy
@@ -220,7 +227,7 @@ def train(
         fixed (`tf.keras.Model`): The model with fixed weights used for the
             Q-targets
         optimizer (`tf.keras.optimizers.Optimizer`): The optimizer
-        replay (`collections.deque`): The experience replay buffer
+        replay (`utils.ReplayBuffer`): The experience replay buffer
         batch_size (int): The no. of states to sample from the replay buffer at
             one instance
         episodes (int): The max episodes to train the model
@@ -305,7 +312,7 @@ def main(args):
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
 
-    replay = deque(maxlen=args.replay_size)
+    replay = ReplayBuffer(limit=args.replay_size)
     if args.resume:
         model.load_weights(os.path.join(args.save_dir, MODEL_SAVE_NAME))
         fixed.load_weights(os.path.join(args.save_dir, FIXED_SAVE_NAME))

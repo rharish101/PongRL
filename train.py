@@ -128,7 +128,7 @@ def train_episode(
             one instance
         epsilon (float): Initial value of epsilon for the epsilon-greedy policy
         discount (float): Discount factor for reward
-        global_step (`tf.Variable`): The no. of frames processed so far
+        global_step (int): The no. of frames processed so far
         reset_steps (int): Steps after which the fixed model is to be updated
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         log_steps (int): Steps after which model is to be logged
@@ -177,10 +177,11 @@ def train_episode(
         if global_step % log_steps == 0:
             with writer.as_default(), tf.name_scope("losses"):
                 tf.summary.scalar("loss", loss, step=global_step)
-        global_step.assign_add(1)
 
         if global_step % reset_steps == 0:
             fixed.set_weights(model.get_weights())
+
+        global_step += 1
 
         if done:
             break
@@ -248,10 +249,7 @@ def train(
 
     # Epsilon is decayed linearly for a few episodes, then kept constant
     epsilon_decay = (epsilon - min_epsilon) / decay_eps
-    # `tf.Variable` is used, as global step changes every frame, and thus the
-    # graph will be re-traced if it were a python value. Also, int64 is
-    # expected by the summary op.
-    global_step = tf.Variable(1, dtype=tf.int64)
+    global_step = 1
 
     try:
         for ep in tqdm(

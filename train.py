@@ -5,12 +5,13 @@ import os
 import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from collections import deque
-
-import tensorflow as tf
-from tqdm import tqdm
+from datetime import datetime
 
 import gym
+import tensorflow as tf
 from gym.wrappers import Monitor  # gym.wrappers doesn't work
+from tqdm import tqdm
+
 from model import get_model
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, sample_replay
 
@@ -321,8 +322,13 @@ def main(args):
     optimizer = tf.keras.optimizers.Adam(args.lr)
     writer = tf.summary.create_file_writer(args.log_dir)
 
-    if not os.path.exists(args.log_dir):
-        os.makedirs(args.log_dir)
+    # Save each run into a directory by its timestamp.
+    # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
+    time_stamp = datetime.now().replace(microsecond=0).isoformat()
+    log_dir = os.path.join(args.log_dir, time_stamp)
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
@@ -350,7 +356,7 @@ def main(args):
         writer=writer,
         log_steps=args.log_steps,
         video_eps=args.video_eps,
-        log_dir=args.log_dir,
+        log_dir=log_dir,
         save_eps=args.save_eps,
         save_dir=args.save_dir,
     )

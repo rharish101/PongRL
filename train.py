@@ -325,7 +325,6 @@ def main(args):
         epsilon = args.epsilon
 
     optimizer = tf.keras.optimizers.Adam(args.lr)
-    writer = tf.summary.create_file_writer(args.log_dir)
 
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
@@ -338,10 +337,12 @@ def main(args):
         os.makedirs(args.save_dir)
 
     # Save hyperparams in both log and save directories
-    with open(os.path.join(args.log_dir, CONFIG_SAVE_NAME), "w") as conf:
+    with open(os.path.join(log_dir, CONFIG_SAVE_NAME), "w") as conf:
         json.dump(vars(args), conf)
     with open(os.path.join(args.save_dir, CONFIG_SAVE_NAME), "w") as conf:
         json.dump(vars(args), conf)
+
+    writer = tf.summary.create_file_writer(log_dir)
 
     train(
         env,

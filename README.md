@@ -88,3 +88,17 @@ Progress can be resumed using the `--resume` option as follows:
 ./train.py --resume
 ```
 The model will load data from the location where data is saved (from the directory given by the `--save-dir` argument).
+
+## Results
+
+### Video
+![video](./images/play.gif)
+
+This video is sped up to optimize the GIF.
+
+### Metrics
+#### Loss
+![loss](./images/loss.png)
+
+#### Max Q-value
+![max-q](./images/max-q.png)

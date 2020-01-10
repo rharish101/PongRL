@@ -89,6 +89,21 @@ Progress can be resumed using the `--resume` option as follows:
 ```
 The model will load data from the location where data is saved (from the directory given by the `--save-dir` argument).
 
+### Testing
+Run `test.py`:
+```
+./test.py
+```
+
+The testing script uses Python's argparse to parse commandline arguments.
+For info, refer to the help info that can be obtained using:
+```
+./test.py --help
+```
+
+The trained model will be loaded from the directory given by the `--load-dir` argument.
+The output will be a video saved into the directory given by the `--log-dir` argument.
+
 ## Results
 
 ### Video

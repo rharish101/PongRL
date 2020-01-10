@@ -194,7 +194,7 @@ def train_episode(
             break
 
     # Needed for logging metrics
-    return first
+    return first, global_step
 
 
 def train(
@@ -271,7 +271,7 @@ def train(
         for ep in tqdm(
             range(start + 1, episodes + 1), initial=start, total=episodes
         ):
-            first = train_episode(
+            first, global_step = train_episode(
                 env,
                 model,
                 fixed,

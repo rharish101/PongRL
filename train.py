@@ -77,6 +77,9 @@ def exp_replay(
             the batch of transitions
         discount (float): Discount factor for reward
 
+    Returns:
+        `tf.Tensor`: The loss
+
     """
     with tf.GradientTape() as tape:
         q_initial = model(inputs, training=True)
@@ -139,6 +142,10 @@ def train_episode(
         reset_steps (int): Steps after which the fixed model is to be updated
         writer (`tf.summary.SummaryWriter`): The summary writer for saving logs
         log_steps (int): Steps after which model is to be logged
+
+    Returns:
+        `collections.deque`: The first state encountered
+        int: The updated global step
 
     """
     state = deque(maxlen=STATE_FRAMES)

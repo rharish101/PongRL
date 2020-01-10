@@ -41,7 +41,7 @@ def saver(model, fixed, episode, epsilon, save_dir):
 
     """
     model.save_weights(os.path.join(save_dir, MODEL_SAVE_NAME))
-    fixed.save_weights(os.path.join(save_dir, MODEL_SAVE_NAME))
+    fixed.save_weights(os.path.join(save_dir, FIXED_SAVE_NAME))
     with open(os.path.join(save_dir, DATA_SAVE_NAME), "wb") as dataf:
         pickle.dump((episode, epsilon), dataf)
 
@@ -255,10 +255,19 @@ def train(
     )
 
     # Epsilon is decayed linearly for a few episodes, then kept constant
-    epsilon_decay = (epsilon - min_epsilon) / decay_eps
+    if decay_wait <= start < decay_wait + decay_eps:
+        shift = start - decay_wait
+    else:
+        # Either decay hasn't started, in which case shift is zero, or decay is
+        # finished, in which case shift is kept zero as it might cause
+        # div-by-zero.
+        shift = 0
+    epsilon_decay = (epsilon - min_epsilon) / (decay_eps - shift)
+
     global_step = 1
 
     try:
+        ep = start  # in case start == episodes
         for ep in tqdm(
             range(start + 1, episodes + 1), initial=start, total=episodes
         ):
@@ -316,7 +325,7 @@ def main(args):
     if args.resume:
         model.load_weights(os.path.join(args.save_dir, MODEL_SAVE_NAME))
         fixed.load_weights(os.path.join(args.save_dir, FIXED_SAVE_NAME))
-        with open(os.path.join(args.save_dir, DATA_SAVE_NAME), "wb") as dataf:
+        with open(os.path.join(args.save_dir, DATA_SAVE_NAME), "rb") as dataf:
             start, epsilon = pickle.load(dataf)
         print("Loaded model and training data")
     else:

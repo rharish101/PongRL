@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Train the DQN for Pong."""
-import json
 import os
 import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
@@ -9,6 +8,7 @@ from datetime import datetime
 
 import gym
 import tensorflow as tf
+import yaml
 from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 
@@ -22,7 +22,7 @@ from utils import (
     sample_replay,
 )
 
-CONFIG_NAME = "config.json"
+CONFIG_NAME = "config.yaml"
 
 
 class DQNTrainer:
@@ -324,7 +324,7 @@ def main(args):
         if not os.path.exists(directory):
             os.makedirs(directory)
         with open(os.path.join(directory, CONFIG_NAME), "w") as conf:
-            json.dump(vars(args), conf)
+            yaml.dump(vars(args), conf)
 
     optimizer = tf.keras.optimizers.Adam(args.lr)
     writer = tf.summary.create_file_writer(log_dir)

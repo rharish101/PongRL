@@ -141,6 +141,9 @@ The output will be a video saved into the directory given by the `--log-dir` arg
 
 ## Results
 
+**NOTE**: These results were obtained without a fixed seed.
+Actual results may vary quite a bit.
+
 ### Video
 ![video](./images/play.gif)
 

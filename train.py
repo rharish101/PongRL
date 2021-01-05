@@ -22,6 +22,7 @@ from utils import (
     choose,
     preprocess,
     sample_replay,
+    set_all_seeds,
 )
 
 CONFIG_NAME: Final = "config.yaml"
@@ -303,6 +304,9 @@ def main(args: Namespace) -> None:
     # Automatically implements frame skipping internally
     env = gym.make("Pong-v4", frameskip=args.frame_skips)
 
+    if args.seed is not None:
+        set_all_seeds(env, args.seed)
+
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
@@ -456,5 +460,10 @@ if __name__ == "__main__":
         "--resume",
         action="store_true",
         help="resume training from a model saved earlier",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="random seed for reproducibility",
     )
     main(parser.parse_args())

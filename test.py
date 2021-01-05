@@ -10,7 +10,7 @@ from gym.wrappers import Monitor  # gym.wrappers doesn't work
 
 from model import get_model
 from train import DQNTrainer
-from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess
+from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, set_all_seeds
 
 
 def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: str) -> None:
@@ -57,6 +57,9 @@ def main(args: Namespace) -> None:
     """
     env = gym.make("Pong-v4", frameskip=args.frame_skips)
 
+    if args.seed is not None:
+        set_all_seeds(env, args.seed)
+
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
@@ -88,5 +91,10 @@ if __name__ == "__main__":
         type=str,
         default="./logs/test/",
         help="path where to save the video",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="random seed for reproducibility",
     )
     main(parser.parse_args())

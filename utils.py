@@ -2,6 +2,7 @@
 import random
 from typing import Generic, List, Tuple, TypeVar
 
+import gym
 import tensorflow as tf
 from typing_extensions import Final
 
@@ -146,3 +147,10 @@ def sample_replay(
     outputs = tf.image.convert_image_dtype(outputs, tf.float32)
 
     return inputs, outputs, actions, rewards, terminals
+
+
+def set_all_seeds(env: gym.Wrapper, seed: int) -> None:
+    """Set all global random seeds for reproducibility."""
+    random.seed(seed)
+    tf.random.set_seed(seed)
+    env.seed(seed)

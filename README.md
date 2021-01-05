@@ -82,6 +82,25 @@ The following details are logged during training:
     poetry shell
     ```
 
+#### For Contributing
+[pre-commit](https://pre-commit.com/) is used for managing hooks that run before each commit, to ensure code quality and run some basic tests.
+Thus, this needs to be set up only when one intends to commit changes to git.
+
+1. Activate the virtual environment where you installed the dependencies.
+
+2. Install all dependencies, including extra dependencies for development:
+    ```sh
+    poetry install
+    ```
+
+3. Install pre-commit hooks:
+    ```sh
+    pre-commit install
+    ```
+
+**NOTE**: You need to be inside the virtual environment where you installed the above dependencies every time you commit.
+However, this is not required if you have installed pre-commit globally.
+
 ### Training
 Run `train.py`:
 ```

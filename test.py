@@ -9,7 +9,7 @@ import tensorflow as tf
 from gym.wrappers import Monitor  # gym.wrappers doesn't work
 
 from model import get_model
-from train import MODEL_SAVE_NAME
+from train import DQNTrainer
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess
 
 
@@ -63,7 +63,7 @@ def main(args):
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
-    model.load_weights(os.path.join(args.load_dir, MODEL_SAVE_NAME))
+    model.load_weights(os.path.join(args.load_dir, DQNTrainer.MODEL_NAME))
     print("Loaded model")
 
     if not os.path.exists(args.log_dir):

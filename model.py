@@ -1,10 +1,12 @@
 """DQN model."""
-from tensorflow.keras import Sequential
+from typing import Sequence
+
+from tensorflow.keras import Model, Sequential
 from tensorflow.keras.initializers import VarianceScaling
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
 
-def get_model(input_shape, output_dims):
+def get_model(input_shape: Sequence[int], output_dims: int) -> Model:
     """Get the DQN model."""
     model = Sequential()
     model.add(

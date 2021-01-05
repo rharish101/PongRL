@@ -2,73 +2,71 @@
 """Train the DQN for Pong."""
 import os
 import pickle
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from collections import deque
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime
+from typing import Deque, Optional, Tuple
 
 import gym
 import tensorflow as tf
 import yaml
 from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
+from typing_extensions import Final
 
 from model import get_model
 from utils import (
     IMG_SIZE,
     STATE_FRAMES,
     ReplayBuffer,
+    TransitionType,
     choose,
     preprocess,
     sample_replay,
 )
 
-CONFIG_NAME = "config.yaml"
+CONFIG_NAME: Final = "config.yaml"
 
 
 class DQNTrainer:
     """Class to train a DQN for Pong."""
 
-    MODEL_NAME = "model.ckpt"
-    FIXED_NAME = "fixed.ckpt"
-    DATA_NAME = "data.pkl"
+    MODEL_NAME: Final = "model.ckpt"
+    FIXED_NAME: Final = "fixed.ckpt"
+    DATA_NAME: Final = "data.pkl"
 
     def __init__(
         self,
-        env,
-        model,
-        fixed,
-        replay,
-        optimizer,
-        writer,
-        batch_size,
-        discount,
-        reset_steps,
-        log_steps,
-        video_eps,
-        log_dir,
-        save_dir,
+        env: gym.Wrapper,
+        model: tf.keras.Model,
+        fixed: tf.keras.Model,
+        replay: ReplayBuffer[TransitionType],
+        optimizer: tf.keras.optimizers.Optimizer,
+        writer: tf.summary.SummaryWriter,
+        batch_size: int,
+        discount: float,
+        reset_steps: int,
+        log_steps: int,
+        video_eps: int,
+        log_dir: str,
+        save_dir: str,
     ):
         """Store the main model and other info.
 
         Args:
-            env (`gym.Wrapper`): The Atari Pong environment
-            model (`tf.keras.Model`): The model to be trained
-            fixed (`tf.keras.Model`): The model with fixed weights used for the
-                Q-targets
-            replay (`utils.ReplayBuffer`): The experience replay buffer
-            optimizer (`tf.keras.optimizers.Optimizer`): The optimizer
-            writer (`tf.summary.SummaryWriter`): The summary writer for saving
-                logs
-            batch_size (int): The no. of states to sample from the replay
-                buffer at one instance
-            discount (float): Discount factor for reward
-            reset_steps (int): Steps after which the fixed model is to be
-                updated
-            log_steps (int): Steps after which model is to be logged
-            video_eps (int): Episodes after which video is to be saved
-            log_dir (str): Path where to save logs
-            save_dir (str): Path where to save the model and data
-
+            env: The Atari Pong environment
+            model: The model to be trained
+            fixed: The model with fixed weights used for the Q-targets
+            replay: The experience replay buffer
+            optimizer: The optimizer
+            writer: The summary writer for saving logs
+            batch_size: The no. of states to sample from the replay buffer at
+                one instance
+            discount: Discount factor for reward
+            reset_steps: Steps after which the fixed model is to be updated
+            log_steps: Steps after which model is to be logged
+            video_eps: Episodes after which video is to be saved
+            log_dir: Path where to save logs
+            save_dir: Path where to save the model and data
         """
         # The Pong environment, with a video monitor attached
         self.env = Monitor(
@@ -97,14 +95,12 @@ class DQNTrainer:
         self.log_steps = log_steps
         self.save_dir = save_dir
 
-    def load_info(self):
+    def load_info(self) -> Tuple[int, float]:
         """Load models and training parameters.
 
         Returns:
-            episode (int): The count of the current episode, previously
-            epsilon (float): Current value of epsilon for the epsilon-greedy
-                policy, previously
-
+            The count of the current episode, previously
+            Current value of epsilon for the epsilon-greedy policy, previously
         """
         self.model.load_weights(os.path.join(self.save_dir, self.MODEL_NAME))
         self.fixed.load_weights(os.path.join(self.save_dir, self.FIXED_NAME))
@@ -113,14 +109,12 @@ class DQNTrainer:
         print("Loaded model and training data")
         return start, epsilon
 
-    def save_info(self, episode, epsilon):
+    def save_info(self, episode: int, epsilon: float) -> None:
         """Save models and training parameters.
 
         Args:
-            episode (int): The count of the current episode
-            epsilon (float): Current value of epsilon for the epsilon-greedy
-                policy
-
+            episode: The count of the current episode
+            epsilon: Current value of epsilon for the epsilon-greedy policy
         """
         self.model.save_weights(os.path.join(self.save_dir, self.MODEL_NAME))
         self.fixed.save_weights(os.path.join(self.save_dir, self.FIXED_NAME))
@@ -128,24 +122,29 @@ class DQNTrainer:
             pickle.dump((episode, epsilon), data)
 
     @tf.function
-    def exp_replay(self, inputs, outputs, actions, rewards, terminals):
+    def exp_replay(
+        self,
+        inputs: tf.Tensor,
+        outputs: tf.Tensor,
+        actions: tf.Tensor,
+        rewards: tf.Tensor,
+        terminals: tf.Tensor,
+    ) -> tf.Tensor:
         """Train the model on a random sample from the replay buffer.
 
         Args:
-            inputs (`tf.Tensor`): The float32 initial states for the batch of
+            inputs: The float32 initial states for the batch of transitions
+            outputs: The float32 corresponding final states for the batch of
                 transitions
-            outputs (`tf.Tensor`): The float32 corresponding final states for
-                the batch of transitions
-            actions (`tf.Tensor`): The int64 corresponding actions for the
-                batch of transitions
-            rewards (`tf.Tensor`): The float32 corresponding rewards for the
-                batch of transitions
-            terminals (`tf.Tensor`): The bool corresponding terminal indicators
-                for the batch of transitions
+            actions: The int64 corresponding actions for the batch of
+                transitions
+            rewards: The float32 corresponding rewards for the batch of
+                transitions
+            terminals: The bool corresponding terminal indicators for the batch
+                of transitions
 
         Returns:
-            `tf.Tensor`: The loss
-
+            The loss
         """
         with tf.GradientTape() as tape:
             q_initial = self.model(inputs, training=True)
@@ -178,23 +177,23 @@ class DQNTrainer:
         # Needed for logging loss
         return loss
 
-    def train_episode(self, epsilon, global_step):
+    def train_episode(
+        self, epsilon: float, global_step: int
+    ) -> Tuple[Optional[tf.Tensor], int]:
         """Run one episode and train the model on it.
 
         Args:
-            epsilon (float): Current value of epsilon for the epsilon-greedy
-                policy
-            global_step (int): The no. of frames processed so far
+            epsilon: Current value of epsilon for the epsilon-greedy policy
+            global_step: The no. of frames processed so far
 
         Returns:
-            `collections.deque`: The first state encountered
-            int: The updated global step
-
+            The first state encountered
+            The updated global step
         """
-        state = deque(maxlen=STATE_FRAMES)
+        state = Deque[tf.Tensor](maxlen=STATE_FRAMES)
         state.append(preprocess(self.env.reset()))  # initial state
 
-        first = None
+        first: Optional[tf.Tensor] = None
 
         while True:
             if len(state) < STATE_FRAMES:
@@ -237,26 +236,24 @@ class DQNTrainer:
 
     def train(
         self,
-        episodes,
-        epsilon,
-        min_epsilon,
-        decay_wait,
-        decay_eps,
-        save_eps,
-        start=0,
-    ):
+        episodes: int,
+        epsilon: float,
+        min_epsilon: float,
+        decay_wait: int,
+        decay_eps: int,
+        save_eps: int,
+        start: int = 0,
+    ) -> None:
         """Train the DQN on Pong.
 
         Args:
-            episodes (int): The max episodes to train the model
-            epsilon (float): Initial value of epsilon for the epsilon-greedy
-                policy
-            min_epsilon (float): Lower bound for epsilon after decay
-            decay_wait (int): No. of episodes to wait before decaying epsilon
-            decay_eps (int): No. of episodes for epsilon decay
-            save_eps (int): Episodes after which model and data are to be saved
-            start (int): The starting episode (useful when resuming progress)
-
+            episodes: The max episodes to train the model
+            epsilon: Initial value of epsilon for the epsilon-greedy policy
+            min_epsilon: Lower bound for epsilon after decay
+            decay_wait: No. of episodes to wait before decaying epsilon
+            decay_eps: No. of episodes for epsilon decay
+            save_eps: Episodes after which model and data are to be saved
+            start: The starting episode
         """
         # Epsilon is decayed linearly for a few episodes, then kept constant
         if decay_wait <= start < decay_wait + decay_eps:
@@ -295,7 +292,7 @@ class DQNTrainer:
             self.save_info(ep, epsilon)
 
 
-def main(args):
+def main(args: Namespace) -> None:
     """Run the main program.
 
     Arguments:
@@ -313,7 +310,7 @@ def main(args):
     fixed = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
-    replay = ReplayBuffer(limit=args.replay_size)
+    replay = ReplayBuffer[TransitionType](limit=args.replay_size)
 
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.

@@ -678,7 +678,7 @@ testing = ["pytest (>=3.5,<3.7.3 || >3.7.3)", "pytest-checkdocs (>=1.2.3)", "pyt
 [metadata]
 lock-version = "1.0"
 python-versions = "3.7"
-content-hash = "a95f6ae525579277bb02a2663df7488b05a8732d17cd289b5de8f743e4a6fbe6"
+content-hash = "44d9b71f97b8bba9212b5cf3fcdf0f04729b5d7963382c307f419c509187c22c"
 
 [metadata.files]
 absl-py = [

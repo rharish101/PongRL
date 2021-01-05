@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test the DQN on Pong."""
 import os
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from collections import deque
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from typing import Deque
 
 import gym
 import tensorflow as tf
@@ -13,14 +13,13 @@ from train import DQNTrainer
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess
 
 
-def test(env, model, log_dir):
+def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: str) -> None:
     """Test the DQN on Pong.
 
     Args:
-        env (`gym.Wrapper`): The Atari Pong environment
-        model (`tf.keras.Model`): The model to be trained
-        log_dir (str): Path where to save the video
-
+        env: The Atari Pong environment
+        model: The model to be trained
+        log_dir: Path where to save the video
     """
     env = Monitor(
         env,
@@ -29,7 +28,7 @@ def test(env, model, log_dir):
         video_callable=lambda count: True,  # force save this episode
     )
 
-    state = deque(maxlen=STATE_FRAMES)
+    state = Deque[tf.Tensor](maxlen=STATE_FRAMES)
     state.append(preprocess(env.reset()))  # initial state
 
     print("Starting testing...")
@@ -50,13 +49,11 @@ def test(env, model, log_dir):
     print("Testing done")
 
 
-def main(args):
+def main(args: Namespace) -> None:
     """Run the main program.
 
     Arguments:
-        args (`argparse.Namespace`): The object containing the commandline
-            arguments
-
+        args: The object containing the commandline arguments
     """
     env = gym.make("Pong-v4", frameskip=args.frame_skips)
 

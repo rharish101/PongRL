@@ -91,8 +91,8 @@ def choose(model: tf.keras.Model, state: tf.Tensor, epsilon: float) -> int:
     # Convert from uint8 to float32
     inputs = tf.image.convert_image_dtype(state, tf.float32)
     pred = model(tf.expand_dims(inputs, axis=0))[0]  # not training
-    random = tf.random.uniform([])
-    if random < epsilon:
+    rand = tf.random.uniform([])
+    if rand < epsilon:
         action = tf.random.uniform(
             [], minval=0, maxval=len(pred), dtype=tf.int64
         )

@@ -1,3 +1,0 @@
-tensorflow==2.4.0
-gym[atari]==0.15.3
-tqdm==4.28.1

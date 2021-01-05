@@ -59,12 +59,28 @@ The following details are logged during training:
 ## Instructions
 
 ### Setup
-1. Install CMake (for building Gym)
-2. Install all required Python libraries:
+[Poetry](https://python-poetry.org/) is used for conveniently installing and managing dependencies.
+
+1. *[Optional]* Create and activate a virtual environment with Python >= 3.8.
+
+2. Install Poetry globally (recommended), or in a virtual environment.
+    Please refer to [Poetry's installation guide](https://python-poetry.org/docs/#installation) for recommended installation options.
+
+    You can use pip to install it:
+    ```sh
+    pip install poetry
     ```
-    pip install -r requirements.txt
+
+3. Install all dependencies with Poetry:
+    ```sh
+    poetry install --no-dev
     ```
-3. [ *Optional* ] Uninstall CMake
+
+    If you didn't create and activate a virtual environment in step 1, Poetry creates one for you and installs all dependencies there.
+    To use this virtual environment, run:
+    ```sh
+    poetry shell
+    ```
 
 ### Training
 Run `train.py`:

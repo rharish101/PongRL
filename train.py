@@ -96,31 +96,29 @@ class DQNTrainer:
         self.log_steps = log_steps
         self.save_dir = save_dir
 
-    def load_info(self) -> Tuple[int, float]:
+    def load_info(self) -> int:
         """Load models and training parameters.
 
         Returns:
-            The count of the current episode, previously
-            Current value of epsilon for the epsilon-greedy policy, previously
+            The episode when the previous model was terminated
         """
         self.model.load_weights(os.path.join(self.save_dir, self.MODEL_NAME))
         self.fixed.load_weights(os.path.join(self.save_dir, self.FIXED_NAME))
         with open(os.path.join(self.save_dir, self.DATA_NAME), "rb") as data:
-            start, epsilon = pickle.load(data)
+            start = pickle.load(data)
         print("Loaded model and training data")
-        return start, epsilon
+        return start
 
-    def save_info(self, episode: int, epsilon: float) -> None:
+    def save_info(self, episode: int) -> None:
         """Save models and training parameters.
 
         Args:
             episode: The count of the current episode
-            epsilon: Current value of epsilon for the epsilon-greedy policy
         """
         self.model.save_weights(os.path.join(self.save_dir, self.MODEL_NAME))
         self.fixed.save_weights(os.path.join(self.save_dir, self.FIXED_NAME))
         with open(os.path.join(self.save_dir, self.DATA_NAME), "wb") as data:
-            pickle.dump((episode, epsilon), data)
+            pickle.dump(episode, data)
 
     @tf.function
     def exp_replay(
@@ -238,7 +236,7 @@ class DQNTrainer:
     def train(
         self,
         episodes: int,
-        epsilon: float,
+        init_epsilon: float,
         min_epsilon: float,
         decay_wait: int,
         decay_eps: int,
@@ -249,7 +247,8 @@ class DQNTrainer:
 
         Args:
             episodes: The max episodes to train the model
-            epsilon: Initial value of epsilon for the epsilon-greedy policy
+            init_epsilon: Initial value of epsilon for the epsilon-greedy
+                policy
             min_epsilon: Lower bound for epsilon after decay
             decay_wait: No. of episodes to wait before decaying epsilon
             decay_eps: No. of episodes for epsilon decay
@@ -257,19 +256,16 @@ class DQNTrainer:
             start: The starting episode
         """
         # Epsilon is decayed linearly for a few episodes, then kept constant
-        if decay_wait <= start < decay_wait + decay_eps:
-            shift = start - decay_wait
-        else:
-            # Either decay hasn't started, in which case shift is zero, or
-            # decay is finished, in which case shift is kept zero as it might
-            # cause div-by-zero.
-            shift = 0
-        epsilon_decay = (epsilon - min_epsilon) / (decay_eps - shift)
+        epsilon_decay = (init_epsilon - min_epsilon) / decay_eps
+        epsilon = max(
+            init_epsilon - epsilon_decay * max(start - decay_wait, 0),
+            min_epsilon,
+        )
 
         global_step = 1
+        ep = start  # if start == episodes, the for loop isn't executed
 
         try:
-            ep = start  # in case start == episodes
             for ep in tqdm(
                 range(start + 1, episodes + 1), initial=start, total=episodes
             ):
@@ -282,7 +278,7 @@ class DQNTrainer:
                     tf.summary.scalar("max q", tf.reduce_max(pred), step=ep)
 
                 if ep % save_eps == 0:
-                    self.save_info(ep, epsilon)
+                    self.save_info(ep)
 
                 if decay_wait <= ep <= decay_wait + decay_eps:
                     epsilon -= epsilon_decay
@@ -290,7 +286,7 @@ class DQNTrainer:
         except KeyboardInterrupt:
             pass
         finally:
-            self.save_info(ep, epsilon)
+            self.save_info(ep)
 
 
 def main(args: Namespace) -> None:
@@ -347,15 +343,14 @@ def main(args: Namespace) -> None:
     )
 
     if args.resume:
-        start, epsilon = trainer.load_info()
+        start = trainer.load_info()
     else:
         fixed.set_weights(model.get_weights())
         start = 0
-        epsilon = args.epsilon
 
     trainer.train(
         args.episodes,
-        epsilon,
+        args.init_epsilon,
         args.min_epsilon,
         args.decay_wait,
         args.decay_eps,
@@ -382,7 +377,7 @@ if __name__ == "__main__":
         "--episodes", type=int, default=20000, help="total epsiodes to train"
     )
     parser.add_argument(
-        "--epsilon",
+        "--init-epsilon",
         type=float,
         default=1.0,
         help="initial value of epsilon for the epsilon-greedy policy",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test the DQN on Pong."""
-import os
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from pathlib import Path
 from typing import Deque
 
 import gym
@@ -13,7 +13,7 @@ from train import DQNTrainer
 from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, set_all_seeds
 
 
-def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: str) -> None:
+def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: Path) -> None:
     """Test the DQN on Pong.
 
     Args:
@@ -63,13 +63,14 @@ def main(args: Namespace) -> None:
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
-    model.load_weights(os.path.join(args.load_dir, DQNTrainer.MODEL_NAME))
+    model.load_weights(Path(args.load_dir, DQNTrainer.MODEL_NAME))
     print("Loaded model")
 
-    if not os.path.exists(args.log_dir):
-        os.makedirs(args.log_dir)
+    log_dir = Path(args.log_dir)
+    if not log_dir.exists():
+        log_dir.mkdir(parents=True)
 
-    test(env, model, log_dir=args.log_dir)
+    test(env, model, log_dir=log_dir)
 
 
 if __name__ == "__main__":

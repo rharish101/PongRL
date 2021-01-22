@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Train the DQN for Pong."""
-import os
 import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime
+from pathlib import Path
 from typing import Deque, Optional, Tuple
 
 import gym
@@ -48,8 +48,8 @@ class DQNTrainer:
         reset_steps: int,
         log_steps: int,
         video_eps: int,
-        log_dir: str,
-        save_dir: str,
+        log_dir: Path,
+        save_dir: Path,
     ):
         """Store the main model and other info.
 
@@ -72,7 +72,7 @@ class DQNTrainer:
         # The Pong environment, with a video monitor attached
         self.env = Monitor(
             env,
-            os.path.join(log_dir, "videos"),
+            log_dir / "videos",
             resume=False,  # don't retain older videos
             force=True,  # overwrite existing videos
             video_callable=lambda count: count % video_eps == 0,
@@ -102,9 +102,9 @@ class DQNTrainer:
         Returns:
             The episode when the previous model was terminated
         """
-        self.model.load_weights(os.path.join(self.save_dir, self.MODEL_NAME))
-        self.fixed.load_weights(os.path.join(self.save_dir, self.FIXED_NAME))
-        with open(os.path.join(self.save_dir, self.DATA_NAME), "rb") as data:
+        self.model.load_weights(self.save_dir / self.MODEL_NAME)
+        self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
+        with open(self.save_dir / self.DATA_NAME, "rb") as data:
             start = pickle.load(data)
         print("Loaded model and training data")
         return start
@@ -115,9 +115,9 @@ class DQNTrainer:
         Args:
             episode: The count of the current episode
         """
-        self.model.save_weights(os.path.join(self.save_dir, self.MODEL_NAME))
-        self.fixed.save_weights(os.path.join(self.save_dir, self.FIXED_NAME))
-        with open(os.path.join(self.save_dir, self.DATA_NAME), "wb") as data:
+        self.model.save_weights(self.save_dir / self.MODEL_NAME)
+        self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
+        with open(self.save_dir / self.DATA_NAME, "wb") as data:
             pickle.dump(episode, data)
 
     @tf.function
@@ -315,12 +315,13 @@ def main(args: Namespace) -> None:
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
     time_stamp = datetime.now().replace(microsecond=0).isoformat()
-    log_dir = os.path.join(args.log_dir, time_stamp)
+    log_dir = Path(args.log_dir, time_stamp)
 
-    for directory in log_dir, args.save_dir:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        with open(os.path.join(directory, CONFIG_NAME), "w") as conf:
+    save_dir = Path(args.save_dir)
+    for directory in log_dir, save_dir:
+        if not directory.exists():
+            directory.mkdir(parents=True)
+        with open(directory / CONFIG_NAME, "w") as conf:
             yaml.dump(vars(args), conf)
 
     optimizer = tf.keras.optimizers.Adam(args.lr)
@@ -339,7 +340,7 @@ def main(args: Namespace) -> None:
         log_steps=args.log_steps,
         video_eps=args.video_eps,
         log_dir=log_dir,
-        save_dir=args.save_dir,
+        save_dir=save_dir,
     )
 
     if args.resume:

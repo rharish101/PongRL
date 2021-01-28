@@ -315,10 +315,9 @@ def main(args: Namespace) -> None:
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
     time_stamp = datetime.now().replace(microsecond=0).isoformat()
-    log_dir = Path(args.log_dir, time_stamp)
+    log_dir = args.log_dir / time_stamp
 
-    save_dir = Path(args.save_dir)
-    for directory in log_dir, save_dir:
+    for directory in log_dir, args.save_dir:
         if not directory.exists():
             directory.mkdir(parents=True)
         with open(directory / CONFIG_NAME, "w") as conf:
@@ -340,7 +339,7 @@ def main(args: Namespace) -> None:
         log_steps=args.log_steps,
         video_eps=args.video_eps,
         log_dir=log_dir,
-        save_dir=save_dir,
+        save_dir=args.save_dir,
     )
 
     if args.resume:
@@ -436,7 +435,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--log-dir",
-        type=str,
+        type=Path,
         default="./logs/",
         help="path where to save logs",
     )
@@ -448,7 +447,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save-dir",
-        type=str,
+        type=Path,
         default="./checkpoints/",
         help="path where to save the model and data",
     )

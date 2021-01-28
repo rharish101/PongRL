@@ -63,14 +63,13 @@ def main(args: Namespace) -> None:
     model = get_model(
         IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
     )
-    model.load_weights(Path(args.load_dir, DQNTrainer.MODEL_NAME))
+    model.load_weights(args.load_dir / DQNTrainer.MODEL_NAME)
     print("Loaded model")
 
-    log_dir = Path(args.log_dir)
-    if not log_dir.exists():
-        log_dir.mkdir(parents=True)
+    if not args.log_dir.exists():
+        args.log_dir.mkdir(parents=True)
 
-    test(env, model, log_dir=log_dir)
+    test(env, model, log_dir=args.log_dir)
 
 
 if __name__ == "__main__":
@@ -80,7 +79,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--load-dir",
-        type=str,
+        type=Path,
         default="./checkpoints/",
         help="path from where to load the model and data",
     )
@@ -89,7 +88,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--log-dir",
-        type=str,
+        type=Path,
         default="./logs/test/",
         help="path where to save the video",
     )

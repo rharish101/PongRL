@@ -292,9 +292,7 @@ def main(args: Namespace) -> None:
     """Run the main program.
 
     Arguments:
-        args (`argparse.Namespace`): The object containing the commandline
-            arguments
-
+        args: The object containing the commandline arguments
     """
     # Automatically implements frame skipping internally
     env = gym.make("Pong-v4", frameskip=args.frame_skips)

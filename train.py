@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Train the DQN for Pong."""
-import pickle
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +32,7 @@ class DQNTrainer:
 
     MODEL_NAME: Final = "model.ckpt"
     FIXED_NAME: Final = "fixed.ckpt"
-    DATA_NAME: Final = "data.pkl"
+    DATA_NAME: Final = "data.yaml"
 
     def __init__(
         self,
@@ -104,8 +103,8 @@ class DQNTrainer:
         """
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
-        with open(self.save_dir / self.DATA_NAME, "rb") as data:
-            start = pickle.load(data)
+        with open(self.save_dir / self.DATA_NAME, "r") as data:
+            start = yaml.safe_load(data)["episode"]
         print("Loaded model and training data")
         return start
 
@@ -117,8 +116,8 @@ class DQNTrainer:
         """
         self.model.save_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
-        with open(self.save_dir / self.DATA_NAME, "wb") as data:
-            pickle.dump(episode, data)
+        with open(self.save_dir / self.DATA_NAME, "w") as data:
+            yaml.dump({"episode": episode}, data)
 
     @tf.function
     def exp_replay(

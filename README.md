@@ -126,6 +126,7 @@ For info, refer to the help info that can be obtained using:
 ./train.py --help
 ```
 
+#### Resuming Training
 Since the training can take hours or days, functionality is provided for stopping and resuming progress.
 Press "Ctrl-C" to send a keyboard interrupt to the training script to stop training and save the models and some training parameters.
 The trained model is saved in TensorFlow's ckpt format (to the directory given by the `--save-dir` argument).

@@ -7,7 +7,7 @@ from typing import Deque, Optional, Tuple
 
 import gym
 import tensorflow as tf
-import yaml
+import toml
 from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 from typing_extensions import Final
@@ -24,7 +24,7 @@ from utils import (
     set_all_seeds,
 )
 
-CONFIG_NAME: Final = "config.yaml"
+CONFIG_NAME: Final = "config.toml"
 
 
 class DQNTrainer:
@@ -32,7 +32,7 @@ class DQNTrainer:
 
     MODEL_NAME: Final = "model.ckpt"
     FIXED_NAME: Final = "fixed.ckpt"
-    DATA_NAME: Final = "data.yaml"
+    DATA_NAME: Final = "data.toml"
 
     def __init__(
         self,
@@ -104,7 +104,7 @@ class DQNTrainer:
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
         with open(self.save_dir / self.DATA_NAME, "r") as data:
-            start = yaml.safe_load(data)["episode"]
+            start = toml.load(data)["episode"]
         print("Loaded model and training data")
         return start
 
@@ -117,7 +117,7 @@ class DQNTrainer:
         self.model.save_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
         with open(self.save_dir / self.DATA_NAME, "w") as data:
-            yaml.dump({"episode": episode}, data)
+            toml.dump({"episode": episode}, data)
 
     @tf.function
     def exp_replay(
@@ -318,7 +318,7 @@ def main(args: Namespace) -> None:
         if not directory.exists():
             directory.mkdir(parents=True)
         with open(directory / CONFIG_NAME, "w") as conf:
-            yaml.dump(vars(args), conf)
+            toml.dump(vars(args), conf)
 
     optimizer = tf.keras.optimizers.Adam(args.lr)
     writer = tf.summary.create_file_writer(log_dir)

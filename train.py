@@ -14,11 +14,12 @@ from typing_extensions import Final
 
 from model import get_model
 from utils import (
-    IMG_SIZE,
     STATE_FRAMES,
+    Config,
     ReplayBuffer,
     TransitionType,
     choose,
+    load_config,
     preprocess,
     sample_replay,
     set_all_seeds,
@@ -42,9 +43,7 @@ class DQNTrainer:
         replay: ReplayBuffer[TransitionType],
         optimizer: tf.keras.optimizers.Optimizer,
         writer: tf.summary.SummaryWriter,
-        batch_size: int,
-        discount: float,
-        reset_steps: int,
+        config: Config,
         log_steps: int,
         video_eps: int,
         log_dir: Path,
@@ -59,10 +58,7 @@ class DQNTrainer:
             replay: The experience replay buffer
             optimizer: The optimizer
             writer: The summary writer for saving logs
-            batch_size: The no. of states to sample from the replay buffer at
-                one instance
-            discount: Discount factor for reward
-            reset_steps: Steps after which the fixed model is to be updated
+            config: The hyper-param config
             log_steps: Steps after which model is to be logged
             video_eps: Episodes after which video is to be saved
             log_dir: Path where to save logs
@@ -89,9 +85,7 @@ class DQNTrainer:
         self.writer = writer
 
         # Hyperparams
-        self.batch_size = batch_size
-        self.discount = discount
-        self.reset_steps = reset_steps
+        self.config = config
         self.log_steps = log_steps
         self.save_dir = save_dir
 
@@ -158,7 +152,7 @@ class DQNTrainer:
                 [batch_range, tf.argmax(q_final_main, axis=1)], axis=1
             )
             q_final = tf.gather_nd(q_final_fixed, tgt_indices)
-            targets = rewards + mask * self.discount * q_final
+            targets = rewards + mask * self.config.discount * q_final
 
             # Choose q-values based on actions taken
             pred_indices = tf.stack([batch_range, actions], axis=1)
@@ -212,16 +206,16 @@ class DQNTrainer:
                 if first is None:
                     first = initial
 
-            if len(self.replay) >= self.batch_size:
+            if len(self.replay) >= self.config.batch_size:
                 loss = self.exp_replay(
-                    sample_replay(self.replay, self.batch_size)
+                    sample_replay(self.replay, self.config.batch_size)
                 )
 
             if global_step % self.log_steps == 0:
                 with self.writer.as_default(), tf.name_scope("losses"):
                     tf.summary.scalar("loss", loss, step=global_step)
 
-            if global_step % self.reset_steps == 0:
+            if global_step % self.config.reset_steps == 0:
                 self.fixed.set_weights(self.model.get_weights())
 
             global_step += 1
@@ -232,33 +226,21 @@ class DQNTrainer:
         # Needed for logging metrics
         return first, global_step
 
-    def train(
-        self,
-        episodes: int,
-        init_epsilon: float,
-        min_epsilon: float,
-        decay_wait: int,
-        decay_eps: int,
-        save_eps: int,
-        start: int = 0,
-    ) -> None:
+    def train(self, save_eps: int, start: int = 0) -> None:
         """Train the DQN on Pong.
 
         Args:
-            episodes: The max episodes to train the model
-            init_epsilon: Initial value of epsilon for the epsilon-greedy
-                policy
-            min_epsilon: Lower bound for epsilon after decay
-            decay_wait: No. of episodes to wait before decaying epsilon
-            decay_eps: No. of episodes for epsilon decay
             save_eps: Episodes after which model and data are to be saved
             start: The starting episode
         """
         # Epsilon is decayed linearly for a few episodes, then kept constant
-        epsilon_decay = (init_epsilon - min_epsilon) / decay_eps
+        epsilon_decay = (
+            self.config.init_epsilon - self.config.min_epsilon
+        ) / self.config.decay_eps
         epsilon = max(
-            init_epsilon - epsilon_decay * max(start - decay_wait, 0),
-            min_epsilon,
+            self.config.init_epsilon
+            - epsilon_decay * max(start - self.config.decay_wait, 0),
+            self.config.min_epsilon,
         )
 
         global_step = 1
@@ -266,7 +248,9 @@ class DQNTrainer:
 
         try:
             for ep in tqdm(
-                range(start + 1, episodes + 1), initial=start, total=episodes
+                range(start + 1, self.config.episodes + 1),
+                initial=start,
+                total=self.config.episodes,
             ):
                 first, global_step = self.train_episode(epsilon, global_step)
 
@@ -279,7 +263,11 @@ class DQNTrainer:
                 if ep % save_eps == 0:
                     self.save_info(ep)
 
-                if decay_wait <= ep <= decay_wait + decay_eps:
+                if (
+                    self.config.decay_wait
+                    <= ep
+                    <= self.config.decay_wait + self.config.decay_eps
+                ):
                     epsilon -= epsilon_decay
 
         except KeyboardInterrupt:
@@ -294,20 +282,18 @@ def main(args: Namespace) -> None:
     Arguments:
         args: The object containing the commandline arguments
     """
+    config = load_config(args.config)
+
     # Automatically implements frame skipping internally
-    env = gym.make("Pong-v4", frameskip=args.frame_skips)
+    env = gym.make("Pong-v4", frameskip=config.frame_skips)
 
-    if args.seed is not None:
-        set_all_seeds(env, args.seed)
+    if config.seed is not None:
+        set_all_seeds(env, config.seed)
 
-    model = get_model(
-        IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
-    )
+    model = get_model(env.action_space.n)
 
-    fixed = get_model(
-        IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
-    )
-    replay = ReplayBuffer[TransitionType](limit=args.replay_size)
+    fixed = get_model(env.action_space.n)
+    replay = ReplayBuffer[TransitionType](limit=config.replay_size)
 
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
@@ -320,7 +306,7 @@ def main(args: Namespace) -> None:
         with open(directory / CONFIG_NAME, "w") as conf:
             toml.dump(vars(args), conf)
 
-    optimizer = tf.keras.optimizers.Adam(args.lr)
+    optimizer = tf.keras.optimizers.Adam(config.lr)
     writer = tf.summary.create_file_writer(log_dir)
 
     trainer = DQNTrainer(
@@ -330,9 +316,7 @@ def main(args: Namespace) -> None:
         replay,
         optimizer,
         writer,
-        batch_size=args.batch_size,
-        discount=args.discount,
-        reset_steps=args.reset_steps,
+        config=config,
         log_steps=args.log_steps,
         video_eps=args.video_eps,
         log_dir=log_dir,
@@ -345,15 +329,7 @@ def main(args: Namespace) -> None:
         fixed.set_weights(model.get_weights())
         start = 0
 
-    trainer.train(
-        args.episodes,
-        args.init_epsilon,
-        args.min_epsilon,
-        args.decay_wait,
-        args.decay_eps,
-        args.save_eps,
-        start,
-    )
+    trainer.train(args.save_eps, start=start)
 
 
 if __name__ == "__main__":
@@ -362,61 +338,10 @@ if __name__ == "__main__":
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--lr", type=float, default=2.5e-4, help="learning rate for Adam"
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=32,
-        help="batch size for sampling from the replay buffer",
-    )
-    parser.add_argument(
-        "--episodes", type=int, default=20000, help="total epsiodes to train"
-    )
-    parser.add_argument(
-        "--init-epsilon",
-        type=float,
-        default=1.0,
-        help="initial value of epsilon for the epsilon-greedy policy",
-    )
-    parser.add_argument(
-        "--min-epsilon",
-        type=float,
-        default=0.01,
-        help="lower bound for epsilon after decay",
-    )
-    parser.add_argument(
-        "--decay-wait",
-        type=int,
-        default=1000,
-        help="no. of episodes to wait before decaying epsilon",
-    )
-    parser.add_argument(
-        "--decay-eps",
-        type=int,
-        default=2000,
-        help="no. of episodes for epsilon decay",
-    )
-    parser.add_argument(
-        "--discount",
-        type=float,
-        default=0.99,
-        help="discount factor for reward",
-    )
-    parser.add_argument(
-        "--replay-size",
-        type=int,
-        default=int(1e5),
-        help="max size of experience replay buffer",
-    )
-    parser.add_argument(
-        "--frame-skips", type=int, default=4, help="how much frames to skip"
-    )
-    parser.add_argument(
-        "--reset-steps",
-        type=int,
-        default=10000,
-        help="steps after which the fixed model is to be updated",
+        "-c",
+        "--config",
+        type=Path,
+        help="Path to a TOML config containing hyper-parameter values",
     )
     parser.add_argument(
         "--log-steps",
@@ -452,10 +377,5 @@ if __name__ == "__main__":
         "--resume",
         action="store_true",
         help="resume training from a model saved earlier",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        help="random seed for reproducibility",
     )
     main(parser.parse_args())

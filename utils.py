@@ -1,9 +1,12 @@
 """Utilities for the DQN."""
 import random
-from typing import Generic, List, Tuple, TypeVar
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Generic, List, Optional, Tuple, TypeVar
 
 import gym
 import tensorflow as tf
+import toml
 from typing_extensions import Final
 
 PRE_CROP_SIZE: Final = (110, 84)
@@ -14,6 +17,40 @@ STATE_FRAMES: Final = 4
 
 BufItemType = TypeVar("BufItemType")
 TransitionType = Tuple[tf.Tensor, tf.Tensor, int, float, bool]
+
+
+@dataclass(frozen=True)
+class Config:
+    """Class to hold hyper-parameter configs.
+
+    Attributes:
+        lr: The learning rate for the optimizer
+        batch_size: The no. of states to sample from the replay buffer at one
+            instance
+        episodes: The max episodes to train the model
+        init_epsilon: Initial value of epsilon for the epsilon-greedy policy
+        min_epsilon: Lower bound for epsilon after decay
+        decay_wait: No. of episodes to wait before decaying epsilon
+        decay_eps: No. of episodes for epsilon decay
+        discount: Discount factor for reward
+        replay_size: The max size of the experience replay buffer
+        frame_skips: How much frames to skip when running the environment
+        reset_steps: Steps after which the fixed model is to be updated
+        seed: The random seed for reproducibility
+    """
+
+    lr: float = 2.5e-4
+    batch_size: int = 32
+    episodes: int = 20000
+    init_epsilon: float = 1.0
+    min_epsilon: float = 0.01
+    decay_wait: int = 1000
+    decay_eps: int = 2000
+    discount: float = 0.99
+    replay_size: int = 100000
+    frame_skips: int = 4
+    reset_steps: int = 10000
+    seed: Optional[int] = None
 
 
 class ReplayBuffer(Generic[BufItemType]):
@@ -154,3 +191,16 @@ def set_all_seeds(env: gym.Wrapper, seed: int) -> None:
     random.seed(seed)
     tf.random.set_seed(seed)
     env.seed(seed)
+
+
+def load_config(config_path: Optional[Path]) -> Config:
+    """Load the hyper-param config at the given path.
+
+    If the path doesn't exist, then an empty dict is returned.
+    """
+    if config_path is not None and config_path.exists():
+        with open(config_path, "r") as f:
+            args = toml.load(f)
+    else:
+        args = {}
+    return Config(**args)

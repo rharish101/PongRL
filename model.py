@@ -1,12 +1,12 @@
 """DQN model."""
-from typing import Sequence
-
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.initializers import VarianceScaling
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 
+from utils import IMG_SIZE, STATE_FRAMES
 
-def get_model(input_shape: Sequence[int], output_dims: int) -> Model:
+
+def get_model(output_dims: int) -> Model:
     """Get the DQN model."""
     model = Sequential()
     model.add(
@@ -16,7 +16,7 @@ def get_model(input_shape: Sequence[int], output_dims: int) -> Model:
             strides=4,
             activation="relu",
             kernel_initializer=VarianceScaling(2),
-            input_shape=input_shape,
+            input_shape=(*IMG_SIZE, STATE_FRAMES),
         )
     )
     model.add(

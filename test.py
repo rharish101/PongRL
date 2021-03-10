@@ -10,7 +10,7 @@ from gym.wrappers import Monitor  # gym.wrappers doesn't work
 
 from model import get_model
 from train import DQNTrainer
-from utils import IMG_SIZE, STATE_FRAMES, choose, preprocess, set_all_seeds
+from utils import STATE_FRAMES, choose, load_config, preprocess, set_all_seeds
 
 
 def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: Path) -> None:
@@ -55,14 +55,14 @@ def main(args: Namespace) -> None:
     Arguments:
         args: The object containing the commandline arguments
     """
-    env = gym.make("Pong-v4", frameskip=args.frame_skips)
+    config = load_config(args.config)
 
-    if args.seed is not None:
-        set_all_seeds(env, args.seed)
+    env = gym.make("Pong-v4", frameskip=config.frame_skips)
 
-    model = get_model(
-        IMG_SIZE + (STATE_FRAMES,), output_dims=env.action_space.n
-    )
+    if config.seed is not None:
+        set_all_seeds(env, config.seed)
+
+    model = get_model(env.action_space.n)
     model.load_weights(args.load_dir / DQNTrainer.MODEL_NAME)
     print("Loaded model")
 
@@ -84,17 +84,15 @@ if __name__ == "__main__":
         help="path from where to load the model and data",
     )
     parser.add_argument(
-        "--frame-skips", type=int, default=4, help="how much frames to skip"
+        "-c",
+        "--config",
+        type=Path,
+        help="Path to a TOML config containing hyper-parameter values",
     )
     parser.add_argument(
         "--log-dir",
         type=Path,
         default="./logs/test/",
         help="path where to save the video",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        help="random seed for reproducibility",
     )
     main(parser.parse_args())

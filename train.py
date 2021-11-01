@@ -208,7 +208,7 @@ class DQNTrainer:
 
             if len(self.replay) >= self.config.batch_size:
                 loss = self.exp_replay(
-                    sample_replay(self.replay, self.config.batch_size)
+                    *sample_replay(self.replay, self.config.batch_size)
                 )
 
             if global_step % self.log_steps == 0:

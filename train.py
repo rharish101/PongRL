@@ -307,7 +307,7 @@ def main(args: Namespace) -> None:
             toml.dump(vars(args), conf)
 
     optimizer = tf.keras.optimizers.Adam(config.lr)
-    writer = tf.summary.create_file_writer(log_dir)
+    writer = tf.summary.create_file_writer(str(log_dir))
 
     trainer = DQNTrainer(
         env,

@@ -8,7 +8,6 @@ from typing import Deque, Optional, Tuple
 import gym
 import tensorflow as tf
 import toml
-from gym.wrappers import Monitor  # gym.wrappers doesn't work
 from tqdm import tqdm
 from typing_extensions import Final
 
@@ -38,7 +37,7 @@ class DQNTrainer:
 
     def __init__(
         self,
-        env: gym.Wrapper,
+        env: gym.Env,
         model: tf.keras.Model,
         fixed: tf.keras.Model,
         replay: ReplayBuffer[TransitionType],
@@ -66,7 +65,7 @@ class DQNTrainer:
             save_dir: Path where to save the model and data
         """
         # The Pong environment, with a video monitor attached
-        self.env = Monitor(
+        self.env = gym.wrappers.Monitor(
             env,
             log_dir / "videos",
             resume=False,  # don't retain older videos

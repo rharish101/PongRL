@@ -6,7 +6,6 @@ from typing import Deque
 
 import gym
 import tensorflow as tf
-from gym.wrappers import Monitor  # gym.wrappers doesn't work
 
 from model import get_model
 from train import DQNTrainer
@@ -20,7 +19,7 @@ from utils import (
 )
 
 
-def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: Path) -> None:
+def test(env: gym.Env, model: tf.keras.Model, log_dir: Path) -> None:
     """Test the DQN on Pong.
 
     Args:
@@ -28,7 +27,7 @@ def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: Path) -> None:
         model: The model to be trained
         log_dir: Path where to save the video
     """
-    env = Monitor(
+    env = gym.wrappers.Monitor(
         env,
         log_dir,
         force=True,  # overwrite existing videos

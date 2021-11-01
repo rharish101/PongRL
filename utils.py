@@ -14,6 +14,7 @@ IMG_SIZE: Final = (84, 84)
 SHIFT: Final = 18  # the row from where to crop the frame
 STATE_FRAMES: Final = 4
 
+ENV_NAME: Final = "Pong-v4"
 
 BufItemType = TypeVar("BufItemType")
 TransitionType = Tuple[tf.Tensor, tf.Tensor, int, float, bool]

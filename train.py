@@ -14,6 +14,7 @@ from typing_extensions import Final
 
 from model import get_model
 from utils import (
+    ENV_NAME,
     STATE_FRAMES,
     Config,
     ReplayBuffer,
@@ -285,7 +286,7 @@ def main(args: Namespace) -> None:
     config = load_config(args.config)
 
     # Automatically implements frame skipping internally
-    env = gym.make("Pong-v4", frameskip=config.frame_skips)
+    env = gym.make(ENV_NAME, frameskip=config.frame_skips)
 
     if config.seed is not None:
         set_all_seeds(env, config.seed)

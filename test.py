@@ -10,7 +10,14 @@ from gym.wrappers import Monitor  # gym.wrappers doesn't work
 
 from model import get_model
 from train import DQNTrainer
-from utils import STATE_FRAMES, choose, load_config, preprocess, set_all_seeds
+from utils import (
+    ENV_NAME,
+    STATE_FRAMES,
+    choose,
+    load_config,
+    preprocess,
+    set_all_seeds,
+)
 
 
 def test(env: gym.Wrapper, model: tf.keras.Model, log_dir: Path) -> None:
@@ -57,7 +64,7 @@ def main(args: Namespace) -> None:
     """
     config = load_config(args.config)
 
-    env = gym.make("Pong-v4", frameskip=config.frame_skips)
+    env = gym.make(ENV_NAME, frameskip=config.frame_skips)
 
     if config.seed is not None:
         set_all_seeds(env, config.seed)

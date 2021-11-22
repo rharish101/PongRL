@@ -210,9 +210,9 @@ class DQNTrainer:
                     *self.replay.sample_tensors(self.config.batch_size)
                 )
 
-            if global_step % self.log_steps == 0:
-                with self.writer.as_default(), tf.name_scope("losses"):
-                    tf.summary.scalar("loss", loss, step=global_step)
+                if global_step % self.log_steps == 0:
+                    with self.writer.as_default(), tf.name_scope("losses"):
+                        tf.summary.scalar("loss", loss, step=global_step)
 
             if global_step % self.config.reset_steps == 0:
                 self.fixed.set_weights(self.model.get_weights())

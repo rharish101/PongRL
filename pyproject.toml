@@ -12,6 +12,7 @@ tqdm = "^4.55.1"
 typing-extensions = "^3.7.4"
 toml = "^0.10.2"
 numpy = "^1.21.4"
+tensorflow-addons = "^0.15.0"
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.9.3"

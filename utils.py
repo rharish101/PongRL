@@ -21,6 +21,9 @@ class Config:
 
     Attributes:
         lr: The learning rate for the optimizer
+        min_lr: The minimum learning rate after learning rate decay
+        sched_steps: The total steps for learning rate decay
+        weight_decay: The L2 regularization decay
         dropout: The probability of dropping inputs in dropout
         batch_size: The no. of states to sample from the replay buffer at one
             instance
@@ -37,6 +40,9 @@ class Config:
     """
 
     lr: float = 2.5e-4
+    min_lr: float = 1e-6
+    sched_steps: int = int(5e6)
+    weight_decay: float = 5e-4
     dropout: float = 0.2
     batch_size: int = 32
     episodes: int = 20000

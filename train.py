@@ -9,6 +9,7 @@ import gym
 import numpy as np
 import tensorflow as tf
 import toml
+from tensorflow_addons.optimizers import extend_with_decoupled_weight_decay
 from tqdm import tqdm
 from typing_extensions import Final
 
@@ -71,7 +72,21 @@ class DQNTrainer:
         self.replay = ReplayBuffer(config)
 
         # Optimizer setup
-        self.optimizer = tf.keras.optimizers.Adam(config.lr)
+        lr_scheduler = tf.keras.optimizers.schedules.CosineDecay(
+            config.lr, config.sched_steps, alpha=config.min_lr
+        )
+        wt_decay_scheduler = tf.keras.optimizers.schedules.CosineDecay(
+            config.weight_decay,
+            config.sched_steps,
+            alpha=config.weight_decay * config.min_lr / config.lr,
+        )
+        RMSpropW = extend_with_decoupled_weight_decay(
+            tf.keras.optimizers.RMSprop
+        )
+        # Decay needs to be applied to both learning rate and regularization
+        self.optimizer = RMSpropW(
+            wt_decay_scheduler, learning_rate=lr_scheduler
+        )
 
         # Other helpers
         self.loss_fn = tf.keras.losses.Huber()  # to avoid gradient explosion

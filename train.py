@@ -88,8 +88,13 @@ class DQNTrainer:
         """
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
-        with open(self.save_dir / self.DATA_NAME, "r") as data:
-            start = toml.load(data)["episode"]
+
+        with open(self.save_dir / self.DATA_NAME, "r") as data_file:
+            data = toml.load(data_file)
+
+        start = data["episode"]
+        self.model.rng.reset(data["rng_state"])
+
         print("Loaded model and training data")
         return start
 
@@ -101,8 +106,13 @@ class DQNTrainer:
         """
         self.model.save_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
-        with open(self.save_dir / self.DATA_NAME, "w") as data:
-            toml.dump({"episode": episode}, data)
+
+        data = {
+            "episode": episode,
+            "rng_state": self.model.rng.state.numpy().tolist(),
+        }
+        with open(self.save_dir / self.DATA_NAME, "w") as data_file:
+            toml.dump(data, data_file)
 
     @tf.function
     def exp_replay(

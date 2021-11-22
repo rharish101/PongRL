@@ -2,7 +2,14 @@
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.initializers import VarianceScaling
-from tensorflow.keras.layers import Conv2D, Dense, Flatten
+from tensorflow.keras.layers import (
+    BatchNormalization,
+    Conv2D,
+    Dense,
+    Dropout,
+    Flatten,
+    ReLU,
+)
 from tensorflow.random import Generator
 
 from utils import IMG_SIZE, STATE_FRAMES, Config
@@ -22,19 +29,28 @@ class DQN(Model):
                 16,
                 8,
                 strides=4,
-                activation="relu",
+                use_bias=False,
                 kernel_initializer=initializer,
                 input_shape=(*IMG_SIZE, STATE_FRAMES),
             ),
+            BatchNormalization(),
+            ReLU(),
+            Dropout(config.dropout),
             Conv2D(
                 32,
                 4,
                 strides=2,
-                activation="relu",
+                use_bias=False,
                 kernel_initializer=initializer,
             ),
+            BatchNormalization(),
+            ReLU(),
             Flatten(),
-            Dense(256, activation="relu", kernel_initializer=initializer),
+            Dropout(config.dropout),
+            Dense(256, use_bias=False, kernel_initializer=initializer),
+            BatchNormalization(),
+            ReLU(),
+            Dropout(config.dropout),
             Dense(num_actions, kernel_initializer=initializer),
         ]
 

@@ -21,6 +21,7 @@ class Config:
 
     Attributes:
         lr: The learning rate for the optimizer
+        dropout: The probability of dropping inputs in dropout
         batch_size: The no. of states to sample from the replay buffer at one
             instance
         episodes: The max episodes to train the model
@@ -36,6 +37,7 @@ class Config:
     """
 
     lr: float = 2.5e-4
+    dropout: float = 0.2
     batch_size: int = 32
     episodes: int = 20000
     init_epsilon: float = 1.0

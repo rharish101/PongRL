@@ -46,7 +46,7 @@ class Config:
     replay_size: int = 100000
     frame_skips: int = 4
     reset_steps: int = 10000
-    seed: Optional[int] = None
+    seed: int = 0
 
 
 def load_config(config_path: Optional[Path]) -> Config:

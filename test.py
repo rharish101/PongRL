@@ -7,24 +7,20 @@ from typing import Deque
 import gym
 import tensorflow as tf
 
-from model import get_model
+from model import DQN
 from train import DQNTrainer
-from utils import (
-    ENV_NAME,
-    STATE_FRAMES,
-    choose,
-    load_config,
-    preprocess,
-    set_all_seeds,
-)
+from utils import ENV_NAME, STATE_FRAMES, Config, load_config, preprocess
 
 
-def test(env: gym.Env, model: tf.keras.Model, log_dir: Path) -> None:
+def test(
+    env: gym.Env, model: tf.keras.Model, config: Config, log_dir: Path
+) -> None:
     """Test the DQN on Pong.
 
     Args:
         env: The Atari Pong environment
         model: The model to be trained
+        config: The hyper-param config
         log_dir: Path where to save the video
     """
     env = gym.wrappers.Monitor(
@@ -44,7 +40,7 @@ def test(env: gym.Env, model: tf.keras.Model, log_dir: Path) -> None:
             action = env.action_space.sample()
         else:
             initial = tf.stack(state, axis=-1)
-            action = choose(model, initial, 0)  # choose greedily
+            action = model.choose_action(initial)  # choose greedily
 
         state_new, _, done, _ = env.step(action)
         state_new = preprocess(state_new)
@@ -62,20 +58,19 @@ def main(args: Namespace) -> None:
         args: The object containing the commandline arguments
     """
     config = load_config(args.config)
+    tf.keras.utils.set_random_seed(config.seed)
 
     env = gym.make(ENV_NAME, frameskip=config.frame_skips)
+    env.seed(config.seed)
 
-    if config.seed is not None:
-        set_all_seeds(env, config.seed)
-
-    model = get_model(env.action_space.n)
+    model = DQN(env.action_space.n, config)
     model.load_weights(args.load_dir / DQNTrainer.MODEL_NAME)
     print("Loaded model")
 
     if not args.log_dir.exists():
         args.log_dir.mkdir(parents=True)
 
-    test(env, model, log_dir=args.log_dir)
+    test(env, model, config, log_dir=args.log_dir)
 
 
 if __name__ == "__main__":

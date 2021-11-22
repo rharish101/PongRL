@@ -2,9 +2,8 @@
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generic, List, Optional, Tuple, TypeVar
+from typing import Deque, Optional, Tuple
 
-import gym
 import tensorflow as tf
 import toml
 from typing_extensions import Final
@@ -13,11 +12,7 @@ PRE_CROP_SIZE: Final = (110, 84)
 IMG_SIZE: Final = (84, 84)
 SHIFT: Final = 18  # the row from where to crop the frame
 STATE_FRAMES: Final = 4
-
 ENV_NAME: Final = "ALE/Pong-v5"
-
-BufItemType = TypeVar("BufItemType")
-TransitionType = Tuple[tf.Tensor, tf.Tensor, int, float, bool]
 
 
 @dataclass(frozen=True)
@@ -54,51 +49,68 @@ class Config:
     seed: Optional[int] = None
 
 
-class ReplayBuffer(Generic[BufItemType]):
-    """A class for the replay buffer as a limited length FIFO list."""
+def load_config(config_path: Optional[Path]) -> Config:
+    """Load the hyper-param config at the given path.
 
-    def __init__(self, limit: int):
+    If the path is None, then an empty dict is returned.
+    """
+    if config_path is not None:
+        with open(config_path, "r") as f:
+            args = toml.load(f)
+    else:
+        args = {}
+    return Config(**args)
+
+
+class ReplayBuffer(Deque[Tuple[tf.Tensor, tf.Tensor, int, float, bool]]):
+    """Replay buffer for experience replay."""
+
+    def __init__(self, config: Config):
         """Initialize the buffer.
 
         Args:
-            limit: The limit for the buffer.
+            config: The hyper-param config
 
         Raises:
             ValueError: If the limit is not positive
         """
-        if limit <= 0:
-            raise ValueError(
-                "Buffer limit must be positive; got: {}".format(limit)
-            )
+        super().__init__(maxlen=config.replay_size)
 
-        self.buffer: List[BufItemType] = []
-        self.limit = limit
-        self.next = 0  # where to insert items if buffer is full
+    def sample_tensors(
+        self, batch_size: int
+    ) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+        """Randomly sample transitions from the replay buffer.
 
-    def append(self, item: BufItemType) -> None:
-        """Append the item to the buffer.
+        Args:
+            batch_size: The no. of states to sample from the replay buffer
 
-        If the buffer is not full, then the item will be appended. If it is
-        full, then the item which was inserted earlier (by the index) will be
-        overwritten.
+        Returns:
+            The input states as a float32 batch
+            The corresponding output states as a float32 batch
+            The corresponding actions as a int64 batch
+            The corresponding rewards as a float32 batch
+            The corresponding terminal indicators as a bool batch
         """
-        if len(self.buffer) < self.limit:
-            self.buffer.append(item)
-        else:
-            # `self.next` is initialized with 0. It points to the oldest item.
-            self.buffer[self.next] = item
-            # Increment `self.next`, as the next oldest item is the next one by
-            # index. Once the limit is reached, it wraps around, as the oldest
-            # item now is the one at the first index.
-            self.next = (self.next + 1) % self.limit
+        exp_sample = random.sample(self, batch_size)
+        inputs, outputs, actions, rewards, terminal = zip(*exp_sample)
 
-    def __len__(self) -> int:
-        """Return the total number of items in the buffer."""
-        return len(self.buffer)
+        inputs = tf.stack(inputs, axis=0)
+        actions = tf.stack(actions, axis=0)
+        terminals = tf.stack(terminal, axis=0)
 
-    def sample(self, k: int) -> List[BufItemType]:
-        """Return a random sample from the buffer."""
-        return random.sample(self.buffer, k)
+        # Quantize rewards, as per the paper
+        rewards = tf.sign(tf.stack(rewards, axis=0))
+
+        # Make it into a 4D tensor with a single channel for easy concatenation
+        outputs = tf.expand_dims(tf.stack(outputs, axis=0), axis=-1)
+        # Ignore the oldest frames in the inputs
+        outputs = tf.concat([inputs[:, :, :, 1:], outputs], axis=-1)
+
+        # Convert from uint8 to float32
+        inputs = tf.image.convert_image_dtype(inputs, tf.float32)
+        outputs = tf.image.convert_image_dtype(outputs, tf.float32)
+
+        return inputs, outputs, actions, rewards, terminals
 
 
 @tf.function
@@ -111,97 +123,3 @@ def preprocess(img: tf.Tensor) -> tf.Tensor:
     # Cropping from the `SHIFT` row, and removing the single channel
     img = img[SHIFT : (SHIFT + IMG_SIZE[0]), :, 0]
     return img
-
-
-@tf.function
-def choose(model: tf.keras.Model, state: tf.Tensor, epsilon: float) -> int:
-    """Choose an action wrt an epsilon-greedy policy.
-
-    NOTE: The action choosing is non-differentiable.
-
-    Args:
-        model: The DQN model
-        state: The input state to the model as a 3D tensor
-        epsilon: The epsilon for the epsion-greedy policy
-
-    Returns:
-        The action to be taken
-    """
-    # Convert from uint8 to float32
-    inputs = tf.image.convert_image_dtype(state, tf.float32)
-    pred = model(tf.expand_dims(inputs, axis=0))[0]  # not training
-    rand = tf.random.uniform([])
-    if rand < epsilon:
-        action = tf.random.uniform(
-            [], minval=0, maxval=len(pred), dtype=tf.int64
-        )
-    else:
-        action = tf.argmax(pred)
-    return action
-
-
-def sample_replay(
-    replay: ReplayBuffer[TransitionType],
-    batch_size: int,
-) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
-    """Randomly sample transitions from the replay buffer.
-
-    The replay should consist of tuples representing transitions which contain:
-        * A 3D uint8 tensor representing the initial state
-        * A 2D uint8 tensor representing the final frame (not state)
-        * The action taken
-        * The reward obtained
-        * Whether the final frame is terminal
-
-    Args:
-        replay: The experience replay buffer
-        batch_size: The no. of states to sample from the replay buffer at one
-            instance
-
-    Returns:
-        The input states as a float32 batch
-        The corresponding output states as a float32 batch
-        The corresponding actions as a int64 batch
-        The corresponding rewards as a float32 batch
-        The corresponding terminal indicators as a bool batch
-    """
-    exp_sample = replay.sample(batch_size)
-    inputs, outputs, actions, rewards, terminal = zip(*exp_sample)
-
-    inputs = tf.stack(inputs, axis=0)
-    actions = tf.stack(actions, axis=0)
-    terminals = tf.stack(terminal, axis=0)
-
-    # Quantize rewards, as per the paper
-    rewards = tf.sign(tf.stack(rewards, axis=0))
-
-    # Make it into a 4D tensor with a single channel for easy concatenation
-    outputs = tf.expand_dims(tf.stack(outputs, axis=0), axis=-1)
-    # Ignore the oldest frames in the inputs
-    outputs = tf.concat([inputs[:, :, :, 1:], outputs], axis=-1)
-
-    # Convert from uint8 to float32
-    inputs = tf.image.convert_image_dtype(inputs, tf.float32)
-    outputs = tf.image.convert_image_dtype(outputs, tf.float32)
-
-    return inputs, outputs, actions, rewards, terminals
-
-
-def set_all_seeds(env: gym.Wrapper, seed: int) -> None:
-    """Set all global random seeds for reproducibility."""
-    random.seed(seed)
-    tf.random.set_seed(seed)
-    env.seed(seed)
-
-
-def load_config(config_path: Optional[Path]) -> Config:
-    """Load the hyper-param config at the given path.
-
-    If the path doesn't exist, then an empty dict is returned.
-    """
-    if config_path is not None and config_path.exists():
-        with open(config_path, "r") as f:
-            args = toml.load(f)
-    else:
-        args = {}
-    return Config(**args)

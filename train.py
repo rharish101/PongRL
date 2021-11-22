@@ -11,18 +11,14 @@ import toml
 from tqdm import tqdm
 from typing_extensions import Final
 
-from model import get_model
+from model import DQN
 from utils import (
     ENV_NAME,
     STATE_FRAMES,
     Config,
     ReplayBuffer,
-    TransitionType,
-    choose,
     load_config,
     preprocess,
-    sample_replay,
-    set_all_seeds,
 )
 
 CONFIG_NAME: Final = "config.toml"
@@ -39,10 +35,6 @@ class DQNTrainer:
         self,
         env: gym.Env,
         model: tf.keras.Model,
-        fixed: tf.keras.Model,
-        replay: ReplayBuffer[TransitionType],
-        optimizer: tf.keras.optimizers.Optimizer,
-        writer: tf.summary.SummaryWriter,
         config: Config,
         log_steps: int,
         video_eps: int,
@@ -54,10 +46,6 @@ class DQNTrainer:
         Args:
             env: The Atari Pong environment
             model: The model to be trained
-            fixed: The model with fixed weights used for the Q-targets
-            replay: The experience replay buffer
-            optimizer: The optimizer
-            writer: The summary writer for saving logs
             config: The hyper-param config
             log_steps: Steps after which model is to be logged
             video_eps: Episodes after which video is to be saved
@@ -77,12 +65,15 @@ class DQNTrainer:
         self.model = model
 
         # DQN helpers
-        self.fixed = fixed
-        self.replay = replay
+        self.fixed = tf.keras.models.clone_model(model.model)
+        self.replay = ReplayBuffer(config)
+
+        # Optimizer setup
+        self.optimizer = tf.keras.optimizers.Adam(config.lr)
 
         # Other helpers
-        self.optimizer = optimizer
-        self.writer = writer
+        self.loss_fn = tf.keras.losses.Huber()  # to avoid gradient explosion
+        self.writer = tf.summary.create_file_writer(str(log_dir))
 
         # Hyperparams
         self.config = config
@@ -157,9 +148,7 @@ class DQNTrainer:
             # Choose q-values based on actions taken
             pred_indices = tf.stack([batch_range, actions], axis=1)
             pred = tf.gather_nd(q_initial, pred_indices)
-
-            # Huber loss, to avoid gradient explosion
-            loss = tf.keras.losses.Huber()(y_true=targets, y_pred=pred)
+            loss = self.loss_fn(y_true=targets, y_pred=pred)
 
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(
@@ -193,7 +182,7 @@ class DQNTrainer:
                 action = self.env.action_space.sample()
             else:
                 initial = tf.stack(state, axis=-1)
-                action = choose(self.model, initial, epsilon)
+                action = self.model.choose_action(initial, epsilon)
 
             state_new, reward, done, _ = self.env.step(action)
             state_new = preprocess(state_new)
@@ -208,7 +197,7 @@ class DQNTrainer:
 
             if len(self.replay) >= self.config.batch_size:
                 loss = self.exp_replay(
-                    *sample_replay(self.replay, self.config.batch_size)
+                    *self.replay.sample_tensors(self.config.batch_size)
                 )
 
             if global_step % self.log_steps == 0:
@@ -283,17 +272,13 @@ def main(args: Namespace) -> None:
         args: The object containing the commandline arguments
     """
     config = load_config(args.config)
+    tf.keras.utils.set_random_seed(config.seed)
 
     # Automatically implements frame skipping internally
     env = gym.make(ENV_NAME, frameskip=config.frame_skips)
+    env.seed(config.seed)
 
-    if config.seed is not None:
-        set_all_seeds(env, config.seed)
-
-    model = get_model(env.action_space.n)
-
-    fixed = get_model(env.action_space.n)
-    replay = ReplayBuffer[TransitionType](limit=config.replay_size)
+    model = DQN(env.action_space.n, config)
 
     # Save each run into a directory by its timestamp.
     # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
@@ -304,18 +289,11 @@ def main(args: Namespace) -> None:
         if not directory.exists():
             directory.mkdir(parents=True)
         with open(directory / CONFIG_NAME, "w") as conf:
-            toml.dump(vars(args), conf)
-
-    optimizer = tf.keras.optimizers.Adam(config.lr)
-    writer = tf.summary.create_file_writer(str(log_dir))
+            toml.dump(vars(config), conf)
 
     trainer = DQNTrainer(
         env,
         model,
-        fixed,
-        replay,
-        optimizer,
-        writer,
         config=config,
         log_steps=args.log_steps,
         video_eps=args.video_eps,
@@ -326,7 +304,6 @@ def main(args: Namespace) -> None:
     if args.resume:
         start = trainer.load_info()
     else:
-        fixed.set_weights(model.get_weights())
         start = 0
 
     trainer.train(args.save_eps, start=start)

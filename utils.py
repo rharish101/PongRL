@@ -1,7 +1,7 @@
 """Utilities for the DQN."""
-import random
 from dataclasses import dataclass
 from pathlib import Path
+from random import Random
 from typing import Deque, Optional, Tuple
 
 import tensorflow as tf
@@ -75,6 +75,7 @@ class ReplayBuffer(Deque[Tuple[tf.Tensor, tf.Tensor, int, float, bool]]):
             ValueError: If the limit is not positive
         """
         super().__init__(maxlen=config.replay_size)
+        self.rng = Random(config.seed)
 
     def sample_tensors(
         self, batch_size: int
@@ -91,7 +92,7 @@ class ReplayBuffer(Deque[Tuple[tf.Tensor, tf.Tensor, int, float, bool]]):
             The corresponding rewards as a float32 batch
             The corresponding terminal indicators as a bool batch
         """
-        exp_sample = random.sample(self, batch_size)
+        exp_sample = self.rng.sample(self, batch_size)
         inputs, outputs, actions, rewards, terminal = zip(*exp_sample)
 
         inputs = tf.stack(inputs, axis=0)

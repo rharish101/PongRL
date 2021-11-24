@@ -18,7 +18,6 @@ from utils import (
     ENV_NAME,
     STATE_FRAMES,
     Config,
-    PiecewiseLinearDecay,
     ReplayBuffer,
     load_config,
     preprocess,
@@ -91,11 +90,8 @@ class DQNTrainer:
         # Other helpers
         self.loss_fn = tf.keras.losses.Huber()  # to avoid gradient explosion
         self.writer = tf.summary.create_file_writer(str(log_dir))
-        self.eps_scheduler = PiecewiseLinearDecay(
-            config.init_epsilon,
-            config.min_epsilon,
-            config.decay_wait,
-            config.decay_eps,
+        self.eps_scheduler = tf.keras.optimizers.schedules.CosineDecay(
+            config.epsilon, config.sched_steps, alpha=config.min_epsilon
         )
 
         # Track current position
@@ -231,7 +227,7 @@ class DQNTrainer:
                 action = self.env.action_space.sample()
             else:
                 initial = tf.stack(state, axis=-1)
-                epsilon = self.eps_scheduler(self.episode)
+                epsilon = self.eps_scheduler(self.global_step)
                 action = self.model.choose_action(initial, epsilon)
 
             state_new, reward, done, _ = self.env.step(action)

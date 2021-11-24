@@ -34,6 +34,8 @@ class DQNTrainer:
     OPTIM_NAME: Final = "optim.npz"
     DATA_NAME: Final = "data.toml"
 
+    VID_DIR: Final = "videos"
+
     def __init__(
         self,
         env: gym.Env,
@@ -58,7 +60,7 @@ class DQNTrainer:
         # The Pong environment, with a video monitor attached
         self.env = gym.wrappers.RecordVideo(
             env,
-            log_dir / "videos",
+            log_dir / self.VID_DIR,
             episode_trigger=lambda count: count % video_eps == 0,
         )
 

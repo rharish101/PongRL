@@ -34,6 +34,7 @@ class DQNTrainer:
     OPTIM_NAME: Final = "optim.npz"
     DATA_NAME: Final = "data.toml"
 
+    SAVE_DIR: Final = "checkpoints"
     VID_DIR: Final = "videos"
 
     def __init__(
@@ -44,7 +45,6 @@ class DQNTrainer:
         log_steps: int,
         video_eps: int,
         log_dir: Path,
-        save_dir: Path,
     ):
         """Store the main model and other info.
 
@@ -55,7 +55,6 @@ class DQNTrainer:
             log_steps: Steps after which model is to be logged
             video_eps: Episodes after which video is to be saved
             log_dir: Path where to save logs
-            save_dir: Path where to save the model and data
         """
         # The Pong environment, with a video monitor attached
         self.env = gym.wrappers.RecordVideo(
@@ -91,10 +90,26 @@ class DQNTrainer:
         # Hyperparams
         self.config = config
         self.log_steps = log_steps
-        self.save_dir = save_dir
 
-    def load_info(self) -> None:
-        """Load models and training parameters."""
+        # Save directory setup
+        self.save_dir = log_dir / self.SAVE_DIR
+        if not self.save_dir.exists():
+            self.save_dir.mkdir(parents=True)
+
+    def load_info(self, load_dir: Path) -> None:
+        """Load models and training parameters.
+
+        This also overrides the log directory.
+        """
+        # Reset all uses of the log directory
+        self.env = gym.wrappers.RecordVideo(
+            self.env.env,
+            load_dir / self.VID_DIR,
+            episode_trigger=self.env.episode_trigger,
+        )
+        self.writer = tf.summary.create_file_writer(str(load_dir))
+        self.save_dir = load_dir / self.SAVE_DIR
+
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
 
@@ -235,15 +250,15 @@ class DQNTrainer:
         # Needed for logging metrics
         return first
 
-    def train(self, save_eps: int, resume: bool = False) -> None:
+    def train(self, save_eps: int, resume: Optional[Path] = None) -> None:
         """Train the DQN on Pong.
 
         Args:
             save_eps: Episodes after which model and data are to be saved
-            resume: Whether to resume training from the previous run
+            resume: The path from where to resume training
         """
-        if resume:
-            self.load_info()
+        if resume is not None:
+            self.load_info(resume)
 
         try:
             for _ in tqdm(
@@ -291,11 +306,12 @@ def main(args: Namespace) -> None:
     time_stamp = datetime.now().replace(microsecond=0).isoformat()
     log_dir = args.log_dir / time_stamp
 
-    for directory in log_dir, args.save_dir:
-        if not directory.exists():
-            directory.mkdir(parents=True)
-        with open(directory / CONFIG_NAME, "w") as conf:
-            toml.dump(vars(config), conf)
+    if not log_dir.exists():
+        # Also creates log directory
+        log_dir.mkdir(parents=True)
+
+    with open(log_dir / CONFIG_NAME, "w") as conf:
+        toml.dump(vars(config), conf)
 
     trainer = DQNTrainer(
         env,
@@ -304,7 +320,6 @@ def main(args: Namespace) -> None:
         log_steps=args.log_steps,
         video_eps=args.video_eps,
         log_dir=log_dir,
-        save_dir=args.save_dir,
     )
 
     trainer.train(args.save_eps, resume=args.resume)
@@ -346,14 +361,8 @@ if __name__ == "__main__":
         help="episodes after which model and data are to be saved",
     )
     parser.add_argument(
-        "--save-dir",
-        type=Path,
-        default="./checkpoints/",
-        help="path where to save the model and data",
-    )
-    parser.add_argument(
         "--resume",
-        action="store_true",
-        help="resume training from a model saved earlier",
+        type=Path,
+        help="resume training from the model saved at the given path",
     )
     main(parser.parse_args())

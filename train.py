@@ -16,6 +16,7 @@ from utils import (
     ENV_NAME,
     STATE_FRAMES,
     Config,
+    PiecewiseLinearDecay,
     ReplayBuffer,
     load_config,
     preprocess,
@@ -72,6 +73,12 @@ class DQNTrainer:
         # Other helpers
         self.loss_fn = tf.keras.losses.Huber()  # to avoid gradient explosion
         self.writer = tf.summary.create_file_writer(str(log_dir))
+        self.eps_scheduler = PiecewiseLinearDecay(
+            config.init_epsilon,
+            config.min_epsilon,
+            config.decay_wait,
+            config.decay_eps,
+        )
 
         # Track current position
         self.global_step = 0
@@ -163,11 +170,8 @@ class DQNTrainer:
         # Needed for logging loss
         return loss
 
-    def train_episode(self, epsilon: float) -> Optional[tf.Tensor]:
+    def train_episode(self) -> Optional[tf.Tensor]:
         """Run one episode and train the model on it.
-
-        Args:
-            epsilon: Current value of epsilon for the epsilon-greedy policy
 
         Returns:
             The first state encountered
@@ -183,6 +187,7 @@ class DQNTrainer:
                 action = self.env.action_space.sample()
             else:
                 initial = tf.stack(state, axis=-1)
+                epsilon = self.eps_scheduler(self.episode)
                 action = self.model.choose_action(initial, epsilon)
 
             state_new, reward, done, _ = self.env.step(action)
@@ -226,23 +231,13 @@ class DQNTrainer:
         if resume:
             self.load_info()
 
-        # Epsilon is decayed linearly for a few episodes, then kept constant
-        epsilon_decay = (
-            self.config.init_epsilon - self.config.min_epsilon
-        ) / self.config.decay_eps
-        epsilon = max(
-            self.config.init_epsilon
-            - epsilon_decay * max(self.episode - self.config.decay_wait, 0),
-            self.config.min_epsilon,
-        )
-
         try:
             for _ in tqdm(
                 range(self.episode, self.config.episodes),
                 initial=self.episode,
                 total=self.config.episodes,
             ):
-                first = self.train_episode(epsilon)
+                first = self.train_episode()
                 self.episode += 1
 
                 with self.writer.as_default(), tf.name_scope("metrics"):
@@ -255,13 +250,6 @@ class DQNTrainer:
 
                 if self.episode % save_eps == 0:
                     self.save_info()
-
-                if (
-                    self.config.decay_wait
-                    <= self.episode
-                    <= self.config.decay_wait + self.config.decay_eps
-                ):
-                    epsilon -= epsilon_decay
 
         except KeyboardInterrupt:
             pass

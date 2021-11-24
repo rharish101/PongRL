@@ -124,3 +124,38 @@ def preprocess(img: tf.Tensor) -> tf.Tensor:
     # Cropping from the `SHIFT` row, and removing the single channel
     img = img[SHIFT : (SHIFT + IMG_SIZE[0]), :, 0]
     return img
+
+
+class PiecewiseLinearDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
+    """Decay that is constant, then linearly decays, then is constant again."""
+
+    def __init__(
+        self,
+        initial_value: float,
+        final_value: float,
+        decay_wait: int,
+        decay_steps: int,
+    ):
+        """Store parameters.
+
+        Args:
+            initial_value: The initial value
+            final_value: The final (lowest) value
+            decay_wait: No. of steps to wait before starting linear decay
+            decay_steps: No. of steps of linear decay
+        """
+        self.initial_value = initial_value
+        self.final_value = final_value
+        self.decay_wait = decay_wait
+        self.decay_steps = decay_steps
+
+    def __call__(self, step: int) -> float:
+        """Return the value for the given step."""
+        single_step_decay = (
+            self.initial_value - self.final_value
+        ) / self.decay_steps
+        curr_decay_steps = max(step - self.decay_wait, 0)
+        return max(
+            self.initial_value - single_step_decay * curr_decay_steps,
+            self.final_value,
+        )

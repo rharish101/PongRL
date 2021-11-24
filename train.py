@@ -53,12 +53,10 @@ class DQNTrainer:
             save_dir: Path where to save the model and data
         """
         # The Pong environment, with a video monitor attached
-        self.env = gym.wrappers.Monitor(
+        self.env = gym.wrappers.RecordVideo(
             env,
             log_dir / "videos",
-            resume=False,  # don't retain older videos
-            force=True,  # overwrite existing videos
-            video_callable=lambda count: count % video_eps == 0,
+            episode_trigger=lambda count: count % video_eps == 0,
         )
 
         # The main model

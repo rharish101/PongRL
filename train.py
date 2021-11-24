@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Deque, Optional
 
 import gym
+import numpy as np
 import tensorflow as tf
 import toml
 from tqdm import tqdm
@@ -30,6 +31,7 @@ class DQNTrainer:
 
     MODEL_NAME: Final = "model.ckpt"
     FIXED_NAME: Final = "fixed.ckpt"
+    OPTIM_NAME: Final = "optim.npz"
     DATA_NAME: Final = "data.toml"
 
     def __init__(
@@ -94,6 +96,13 @@ class DQNTrainer:
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
 
+        optim_weights = np.load(self.save_dir / self.OPTIM_NAME).values()
+        # Optimizer variables can only be loaded after initialization
+        self.optimizer.apply_gradients(
+            (tf.zeros_like(var), var) for var in self.model.trainable_variables
+        )
+        self.optimizer.set_weights(optim_weights)
+
         with open(self.save_dir / self.DATA_NAME, "r") as data_file:
             data = toml.load(data_file)
 
@@ -107,6 +116,9 @@ class DQNTrainer:
         """Save models and training parameters."""
         self.model.save_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
+        np.savez(
+            self.save_dir / self.OPTIM_NAME, *self.optimizer.get_weights()
+        )
 
         data = {
             "episode": self.episode,

@@ -1,4 +1,7 @@
+# Python caches
 __pycache__/
 .mypy_cache/
+
+# Project-specific
 logs/
 configs/

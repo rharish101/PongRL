@@ -301,9 +301,8 @@ def main(args: Namespace) -> None:
 
     model = DQN(env.action_space.n, config)
 
-    # Save each run into a directory by its timestamp.
-    # Remove microseconds and convert to ISO 8601 YYYY-MM-DDThh:mm:ss format.
-    time_stamp = datetime.now().replace(microsecond=0).isoformat()
+    # Save each run into a directory by its timestamp (ISO 8601 timezone-aware)
+    time_stamp = datetime.now().astimezone().isoformat()
     log_dir = args.log_dir / time_stamp
 
     if not log_dir.exists():

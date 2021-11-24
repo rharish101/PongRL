@@ -3,7 +3,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Deque, Optional, Tuple
+from typing import Deque, Optional
 
 import gym
 import tensorflow as tf
@@ -73,40 +73,37 @@ class DQNTrainer:
         self.loss_fn = tf.keras.losses.Huber()  # to avoid gradient explosion
         self.writer = tf.summary.create_file_writer(str(log_dir))
 
+        # Track current position
+        self.global_step = 0
+        self.episode = 0
+
         # Hyperparams
         self.config = config
         self.log_steps = log_steps
         self.save_dir = save_dir
 
-    def load_info(self) -> int:
-        """Load models and training parameters.
-
-        Returns:
-            The episode when the previous model was terminated
-        """
+    def load_info(self) -> None:
+        """Load models and training parameters."""
         self.model.load_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.load_weights(self.save_dir / self.FIXED_NAME)
 
         with open(self.save_dir / self.DATA_NAME, "r") as data_file:
             data = toml.load(data_file)
 
-        start = data["episode"]
+        self.episode = data["episode"]
+        self.global_step = data["global_step"]
         self.model.rng.reset(data["rng_state"])
 
         print("Loaded model and training data")
-        return start
 
-    def save_info(self, episode: int) -> None:
-        """Save models and training parameters.
-
-        Args:
-            episode: The count of the current episode
-        """
+    def save_info(self) -> None:
+        """Save models and training parameters."""
         self.model.save_weights(self.save_dir / self.MODEL_NAME)
         self.fixed.save_weights(self.save_dir / self.FIXED_NAME)
 
         data = {
-            "episode": episode,
+            "episode": self.episode,
+            "global_step": self.global_step,
             "rng_state": self.model.rng.state.numpy().tolist(),
         }
         with open(self.save_dir / self.DATA_NAME, "w") as data_file:
@@ -166,18 +163,14 @@ class DQNTrainer:
         # Needed for logging loss
         return loss
 
-    def train_episode(
-        self, epsilon: float, global_step: int
-    ) -> Tuple[Optional[tf.Tensor], int]:
+    def train_episode(self, epsilon: float) -> Optional[tf.Tensor]:
         """Run one episode and train the model on it.
 
         Args:
             epsilon: Current value of epsilon for the epsilon-greedy policy
-            global_step: The no. of frames processed so far
 
         Returns:
             The first state encountered
-            The updated global step
         """
         state = Deque[tf.Tensor](maxlen=STATE_FRAMES)
         state.append(preprocess(self.env.reset()))  # initial state
@@ -208,61 +201,64 @@ class DQNTrainer:
                     *self.replay.sample_tensors(self.config.batch_size)
                 )
 
-                if global_step % self.log_steps == 0:
+                if self.global_step % self.log_steps == 0:
                     with self.writer.as_default(), tf.name_scope("losses"):
-                        tf.summary.scalar("loss", loss, step=global_step)
+                        tf.summary.scalar("loss", loss, step=self.global_step)
 
-            if global_step % self.config.reset_steps == 0:
+            if self.global_step % self.config.reset_steps == 0:
                 self.fixed.set_weights(self.model.get_weights())
 
-            global_step += 1
+            self.global_step += 1
 
             if done:
                 break
 
         # Needed for logging metrics
-        return first, global_step
+        return first
 
-    def train(self, save_eps: int, start: int = 0) -> None:
+    def train(self, save_eps: int, resume: bool = False) -> None:
         """Train the DQN on Pong.
 
         Args:
             save_eps: Episodes after which model and data are to be saved
-            start: The starting episode
+            resume: Whether to resume training from the previous run
         """
+        if resume:
+            self.load_info()
+
         # Epsilon is decayed linearly for a few episodes, then kept constant
         epsilon_decay = (
             self.config.init_epsilon - self.config.min_epsilon
         ) / self.config.decay_eps
         epsilon = max(
             self.config.init_epsilon
-            - epsilon_decay * max(start - self.config.decay_wait, 0),
+            - epsilon_decay * max(self.episode - self.config.decay_wait, 0),
             self.config.min_epsilon,
         )
 
-        global_step = 1
-        ep = start  # if start == episodes, the for loop isn't executed
-
         try:
-            for ep in tqdm(
-                range(start + 1, self.config.episodes + 1),
-                initial=start,
+            for _ in tqdm(
+                range(self.episode, self.config.episodes),
+                initial=self.episode,
                 total=self.config.episodes,
             ):
-                first, global_step = self.train_episode(epsilon, global_step)
+                first = self.train_episode(epsilon)
+                self.episode += 1
 
                 with self.writer.as_default(), tf.name_scope("metrics"):
                     first = tf.image.convert_image_dtype(first, tf.float32)
                     # Not training, but evaluation
                     pred = self.model(tf.expand_dims(first, axis=0))[0]
-                    tf.summary.scalar("max q", tf.reduce_max(pred), step=ep)
+                    tf.summary.scalar(
+                        "max q", tf.reduce_max(pred), step=self.episode
+                    )
 
-                if ep % save_eps == 0:
-                    self.save_info(ep)
+                if self.episode % save_eps == 0:
+                    self.save_info()
 
                 if (
                     self.config.decay_wait
-                    <= ep
+                    <= self.episode
                     <= self.config.decay_wait + self.config.decay_eps
                 ):
                     epsilon -= epsilon_decay
@@ -270,7 +266,7 @@ class DQNTrainer:
         except KeyboardInterrupt:
             pass
         finally:
-            self.save_info(ep)
+            self.save_info()
 
 
 def main(args: Namespace) -> None:
@@ -309,12 +305,7 @@ def main(args: Namespace) -> None:
         save_dir=args.save_dir,
     )
 
-    if args.resume:
-        start = trainer.load_info()
-    else:
-        start = 0
-
-    trainer.train(args.save_eps, start=start)
+    trainer.train(args.save_eps, resume=args.resume)
 
 
 if __name__ == "__main__":

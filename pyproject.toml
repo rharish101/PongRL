@@ -6,7 +6,7 @@ authors = ["Harish Rajagopal <harish.rajagopals@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.7,<3.10"
-tensorflow = "^2.7.0"
+tensorflow = "^2.8.0"
 gym = {extras = ["atari", "accept-rom-license"], version = "^0.21.0"}
 tqdm = "^4.55.1"
 typing-extensions = "^3.7.4"

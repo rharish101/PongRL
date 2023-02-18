@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2019 Harish Rajagopal <harish.rajagopals@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # RL Agent for Atari Pong
 
 Implementation of [Playing Atari with Deep Reinforcement Learning](https://arxiv.org/abs/1312.5602).
@@ -168,3 +174,10 @@ This video is sped up to optimize the GIF.
 
 #### Max Q-value
 ![max-q](./images/max-q.png)
+
+## Licenses
+This repository uses [REUSE](https://reuse.software/) to document licenses.
+Each file either has a header containing copyright and license information, or has an entry in the [DEP5 file](https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/) at [.reuse/dep5](./.reuse/dep5).
+The license files that are used in this project can be found in the [LICENSES](./LICENSES) directory.
+
+The MIT license is placed in [LICENSE](./LICENSE), to signify that it constitutes the majority of the codebase, and for compatibility with GitHub.

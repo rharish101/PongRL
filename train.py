@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2019 Harish Rajagopal <harish.rajagopals@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Train the DQN for Pong."""
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Harish Rajagopal <harish.rajagopals@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Utilities for the DQN."""
 from dataclasses import dataclass
 from pathlib import Path

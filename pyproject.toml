@@ -12,7 +12,7 @@ authors = ["Harish Rajagopal <harish.rajagopals@gmail.com>"]
 python = "^3.8,<3.11"
 tensorflow = "^2.11.1"
 gym = {extras = ["atari", "accept-rom-license"], version = "^0.21.0"}
-tqdm = "^4.55.1"
+tqdm = "^4.66.3"
 typing-extensions = "^3.7.4"
 toml = "^0.10.2"
 numpy = "^1.21.4"

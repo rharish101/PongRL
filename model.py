@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 """DQN model."""
+
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.initializers import VarianceScaling

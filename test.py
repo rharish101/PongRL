@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: MIT
 
 """Test the DQN on Pong."""
+
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from pathlib import Path
 from typing import Deque

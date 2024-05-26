@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 """Utilities for the DQN."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
@@ -97,17 +98,15 @@ class ReplayBuffer(Deque[Tuple[tf.Tensor, tf.Tensor, int, float, bool]]):
             The corresponding terminal indicators as a bool batch
         """
         exp_sample = self.rng.sample(self, batch_size)
-        inputs, outputs, actions, rewards, terminal = zip(*exp_sample)
-
-        inputs = tf.stack(inputs, axis=0)
-        actions = tf.stack(actions, axis=0)
-        terminals = tf.stack(terminal, axis=0)
+        inputs, outputs, actions, rewards, terminals = map(
+            lambda ndarray: tf.stack(ndarray, axis=0), zip(*exp_sample)
+        )
 
         # Quantize rewards, as per the paper
-        rewards = tf.sign(tf.stack(rewards, axis=0))
+        rewards = tf.sign(rewards)
 
         # Make it into a 4D tensor with a single channel for easy concatenation
-        outputs = tf.expand_dims(tf.stack(outputs, axis=0), axis=-1)
+        outputs = tf.expand_dims(outputs, axis=-1)
         # Ignore the oldest frames in the inputs
         outputs = tf.concat([inputs[:, :, :, 1:], outputs], axis=-1)
 

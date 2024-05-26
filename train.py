@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: MIT
 
 """Train the DQN for Pong."""
+
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from datetime import datetime
 from pathlib import Path
